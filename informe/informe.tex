@@ -1,6 +1,6 @@
 % Laboratorio 3 - informe técnico.
 % Compilar desde esta carpeta: pdflatex informe.tex (dos veces para el índice).
-% Las evidencias y los resultados reales se integrarán tras la ejecución en WSL.
+% Resultados de 51 ejecuciones reales; gráficas reproducibles desde los CSV.
 \documentclass[11pt,letterpaper]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -10,6 +10,7 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 \usepackage{amsmath}
 \usepackage{hyperref}
 
@@ -21,6 +22,10 @@
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.55em}
 \setlength{\emergencystretch}{2em}
+\raggedbottom
+\clubpenalty=10000
+\widowpenalty=10000
+\renewcommand{\figurename}{Figura}
 \renewcommand{\contentsname}{Contenido}
 \renewcommand{\abstractname}{Resumen}
 \renewcommand{\refname}{Referencias}
@@ -29,16 +34,18 @@
 
 \newcommand{\heading}[1]{\section{\textcolor{azul}{#1}}}
 \newcommand{\subheading}[1]{\subsection{\textcolor{azul}{#1}}}
-\newcommand{\pendingbox}[1]{%
-  \par\medskip\noindent\fcolorbox{azul}{azulclaro}{%
-    \parbox{0.88\linewidth}{\vspace{0.55em}\textcolor{azul}{\textbf{Pendiente de evidencia:}} #1\vspace{0.55em}}}
-  \par\medskip}
 \newcommand{\evidence}[2]{%
-  \IfFileExists{../evidencias/#1.png}{%
-    \begin{center}\includegraphics[width=0.88\linewidth,height=0.33\textheight,keepaspectratio]{../evidencias/#1.png}\\
-    {\small\textcolor{gris}{#2}}\end{center}%
-  }{\pendingbox{Captura \texttt{\detokenize{#1.png}}. #2}}}
-\newcommand{\resultpending}[1]{\pendingbox{#1. Se incorporará únicamente con las mediciones reales del estudiante.}}
+  \begin{center}
+  \includegraphics[width=\linewidth,height=0.38\textheight,keepaspectratio]{../evidencias/#1.png}\\[0.3em]
+  \refstepcounter{figure}\label{fig:#1}
+  {\small\textcolor{gris}{\textbf{Figura \thefigure.} #2}}
+  \end{center}}
+\newcommand{\chart}[2]{%
+  \begin{center}
+  \includegraphics[width=0.96\linewidth]{figuras/#1.pdf}\\[0.3em]
+  \refstepcounter{figure}\label{fig:#1}
+  {\small\textcolor{gris}{\textbf{Figura \thefigure.} #2}}
+  \end{center}}
 
 \begin{document}
 \thispagestyle{empty}
@@ -57,8 +64,9 @@
 \textbf{Entrega vigente:} & Sábado 3 de octubre de 2026, 23:59 \\
 \end{tabular}
 \vfill
-{\small\color{gris}Borrador técnico. Las evidencias, gráficas y conclusiones
-experimentales se completarán después de la ejecución del estudiante en WSL.}
+{\small\color{gris}Informe experimental con ocho capturas originales,
+cuatro gráficas y 51 mediciones verificadas.\\
+Preparado el 2 de octubre de 2026.}
 \newpage
 
 \begin{abstract}
@@ -69,11 +77,19 @@ restantes estudian comunicación no bloqueante mediante una recepción
 anticipada con trabajo aritmético y un productor-consumidor que transfiere
 un arreglo por chunks. Se define un protocolo reproducible de medición con
 \texttt{MPI\_Wtime}, validación de datos y repeticiones por configuración.
-Las observaciones cuantitativas se incorporarán cuando existan resultados
-obtenidos por el estudiante; este borrador no presupone ninguna tendencia.
+Se analizan 51 ejecuciones realizadas por el estudiante en WSL: tres
+repeticiones de cada una de 17 configuraciones. El RTT mediano de Ping-Pong
+aumenta de 0.495 a 50.171 microsegundos entre los mensajes mínimo y máximo.
+El anillo con llamadas separadas registra 2.242 ms, frente a 3.290 ms con
+Sendrecv; esta diferencia se interpreta considerando el tráfico adicional
+de centinelas. La recepción anticipada realiza cálculo antes de confirmar
+la llegada del mensaje, sin medir una aceleración frente a una referencia
+bloqueante. El pipeline obtiene su menor tiempo mediano, 2.279 ms, con
+chunks de 65\,536 enteros. Se conservan todas las observaciones y se limita
+la interpretación al entorno y a los tamaños ensayados.
 \end{abstract}
 
-\tableofcontents
+{\small\setlength{\parskip}{0pt}\tableofcontents}
 \newpage
 
 \heading{Introducción y alcance}
@@ -93,7 +109,7 @@ dos están nombradas en el texto; por ello este informe presenta cuatro
 secciones de ejercicios sin asignarles oficialmente un porcentaje.
 
 \begin{center}
-\begin{tabular}{@{}p{0.20\linewidth}p{0.33\linewidth}p{0.38\linewidth}@{}}
+\begin{tabular}{@{}L{0.20\linewidth}L{0.33\linewidth}L{0.38\linewidth}@{}}
 \toprule
 \textbf{Ejercicio} & \textbf{Comunicación} & \textbf{Evidencia requerida} \\
 \midrule
@@ -135,27 +151,62 @@ envío debe completarse antes de modificar o liberar su buffer.
 \texttt{MPI\_Wtime} entrega segundos transcurridos según el reloj local
 del proceso. Cada duración se calcula restando dos lecturas tomadas en el
 \emph{mismo} rank; no se restan marcas temporales de ranks distintos. Se
-registra una ronda de calentamiento en Ping-Pong y se realizan tres
-repeticiones por configuración. La mediana atenúa corridas aisladas con
-interferencia del sistema, pero la dispersión seguirá siendo relevante.
+realiza una ronda de calentamiento fuera del cronómetro en Ping-Pong y
+se realizan tres repeticiones por configuración. La mediana reduce la
+influencia de una corrida aislada sobre el resumen, pero no sustituye
+la presentación de la dispersión.
 
 \heading{Entorno y método experimental}
 
-Las ejecuciones están previstas en Ubuntu bajo WSL con Open MPI. El
-estudiante compilará los cuatro programas con \texttt{mpicc} y el
-\texttt{Makefile} del repositorio. Se registrarán las versiones de
-\texttt{mpicc}, \texttt{mpirun} y el equipo utilizado. La ejecución se
-realizará localmente en una sola máquina; \texttt{--oversubscribe} se usará
-solo si el anillo de cinco procesos excede los slots disponibles.
+Las pruebas se realizaron localmente en Ubuntu bajo WSL con Open MPI. El
+código utiliza C11 y se compila mediante \texttt{mpicc}, con optimización
+\texttt{-O2} y advertencias \texttt{-Wall -Wextra -Wpedantic}. El entorno
+disponible se consultó durante la preparación del informe, sin volver a
+ejecutar los experimentos:
 
-\resultpending{Versión de Open MPI, distribución WSL y características del equipo}
+\begin{center}
+\begin{tabular}{@{}L{0.28\linewidth}L{0.63\linewidth}@{}}
+\toprule
+\textbf{Componente} & \textbf{Entorno consultado} \\
+\midrule
+Sistema & Ubuntu 22.04.3 LTS sobre WSL2 \\
+Kernel & \texttt{6.18.33.2-microsoft-standard-WSL2} \\
+MPI & Open MPI 4.1.2, tanto \texttt{mpicc} como \texttt{mpirun} \\
+Procesador & Intel Core i5-10210U, frecuencia nominal 1.60 GHz \\
+Topología visible & 4 núcleos, 2 hilos por núcleo; 8 CPU lógicas \\
+Generación de gráficas & Python 3.13.1 y Matplotlib 3.10.1 en Windows \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-Para cada experimento se mantiene fijo el trabajo total pertinente y se
-varía una sola magnitud principal. Los programas imprimen una línea CSV
+Esta consulta describe el entorno instalado, no una traza histórica de
+carga, frecuencia o afinidad de cada corrida. El comando del anillo incluye
+\texttt{--oversubscribe}; esa opción permite superar los slots que informe
+MPI, pero no demuestra que efectivamente se hayan excedido ni garantiza
+un núcleo dedicado por rank.
+
+Para cada experimento se mantienen constantes los parámetros de control
+definidos en la tabla metodológica. En recepción anticipada se fija el
+lote, no la cantidad total de cálculo. Los programas imprimen una línea CSV
 al final, además de un resumen legible. Las capturas documentan la
 ejecución y los CSV conservan los números exactos para las gráficas.
-Las figuras se elaborarán a partir de la mediana de tres repeticiones;
-si hay variabilidad apreciable, se mostrarán los valores individuales.
+Las 51 filas de los CSV coinciden con la última línea de sus registros
+originales locales. Hay 17 configuraciones completas, con repeticiones
+1, 2 y 3, sin filas faltantes ni duplicadas. Las capturas corresponden a
+demostraciones adicionales: sus tiempos no se mezclan con el barrido.
+
+Las tablas presentan mediana, media, desviación estándar muestral (DE)
+y mínimo--máximo. La DE se calcula con divisor $n-1$, con $n=3$. No se
+eliminó ninguna observación. Las figuras muestran las tres corridas, la
+mediana y el rango observado; las barras \emph{no} son intervalos de
+confianza. Las líneas entre medianas son guías de lectura, no modelos
+ajustados. Los valores se redondean a tres decimales para presentación.
+
+El análisis es descriptivo: con tres repeticiones por configuración no
+se afirma significancia estadística ni una mejora generalizable. El
+script \texttt{analizar\_resultados.py} valida los datos y reproduce las
+tablas; \texttt{graficas\_resultados.py} produce las cuatro figuras sin
+lanzar procesos MPI ni modificar los CSV.
 
 \subheading{Presentación de consola y trazabilidad}
 
@@ -176,7 +227,7 @@ verificación y límites de la región cronometrada. Los dibujos se imprimen
 alteran las comparaciones solicitadas.
 
 \begin{center}
-\begin{tabular}{@{}p{0.27\linewidth}p{0.30\linewidth}p{0.34\linewidth}@{}}
+\begin{tabular}{@{}L{0.27\linewidth}L{0.30\linewidth}L{0.34\linewidth}@{}}
 \toprule
 \textbf{Experimento} & \textbf{Variable independiente} & \textbf{Control} \\
 \midrule
@@ -188,12 +239,16 @@ Pipeline & Chunks de 256 a 65536 enteros & 1\,048\,576 enteros totales, 2 ranks 
 \end{tabular}
 \end{center}
 
+\clearpage
 \heading{Parte 1: comunicación con bloqueo}
 
 \subheading{Ping-Pong}
 
-\evidence{01_ping_pong_entero}{Intercambio básico de un entero durante N rondas.}
-\evidence{02_ping_pong_tamanos}{Comparación de al menos dos tamaños de mensaje.}
+\evidence{01_ping_pong_entero}{Ping-Pong: 10 rondas con un entero. El mensaje regresa sin cambios.}
+\evidence{02_ping_pong_tamanos}{Ping-Pong: 1000 rondas con 1024 enteros, equivalentes a 4096 bytes por mensaje.}
+
+\clearpage
+\subsubsection*{Diseño, medición y corrección}
 
 El rank 0 genera un buffer de enteros y lo envía a rank 1. Este lo recibe y
 lo devuelve sin modificarlo. Una ronda consta de un envío y una devolución;
@@ -217,15 +272,56 @@ latencia media de ida y vuelta:
   T_{\mathrm{ida,estimada}}=\frac{T_{\mathrm{RTT}}}{2}.
 \]
 La segunda expresión es una estimación bajo simetría aproximada, no una
-medición independiente de una dirección. La gráfica solicitada usará bytes
+medición independiente de una dirección. La gráfica utiliza bytes
 por mensaje en el eje horizontal y $T_{\mathrm{RTT}}$ en el vertical.
 
-\resultpending{Tabla, gráfica tamaño de mensaje frente a tiempo y discusión de tendencia del Ping-Pong}
+\subsubsection*{Resultados del barrido}
+Las tres repeticiones de cada tamaño usan 1000 rondas y dos ranks.
+Las 1000 rondas aportan un promedio por corrida; no representan 1000
+muestras estadísticas independientes.
 
+\begin{center}\small
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+\textbf{Enteros} & \textbf{Bytes} & \textbf{Mediana ($\mu$s)} & \textbf{Media $\pm$ DE ($\mu$s)} & \textbf{Mín.--máx. ($\mu$s)}\\
+\midrule
+1 & 4 & 0.495 & $0.545\pm0.118$ & 0.461--0.680\\
+64 & 256 & 0.578 & $0.579\pm0.013$ & 0.566--0.592\\
+1024 & 4096 & 3.625 & $3.824\pm0.489$ & 3.467--4.381\\
+16384 & 65536 & 13.846 & $13.717\pm0.316$ & 13.357--13.947\\
+65536 & 262144 & 50.171 & $49.659\pm2.756$ & 46.683--52.124\\
+\bottomrule
+\end{tabular}\end{center}
+
+\clearpage
+\chart{01_ping_pong}{RTT frente a tamaño del mensaje. Ambos ejes son logarítmicos; se muestran las tres corridas y su rango observado.}
+
+\subsubsection*{Interpretación}
+El RTT mediano aumenta en los cinco tamaños ensayados. Entre 4 y 256 bytes
+pasa de 0.495 a 0.578 $\mu$s; a 262\,144 bytes alcanza 50.171 $\mu$s.
+La razón entre extremos es 101.36, aunque el tamaño del mensaje crece
+65\,536 veces. Esto es compatible con un costo fijo por intercambio y
+otro dependiente del tamaño, pero no se estimó cada componente por
+separado ni se identificaron umbrales internos de protocolos MPI.
+
+El mensaje de un entero muestra una media superior a su mediana debido
+a la corrida de 0.680 $\mu$s. Se mantiene ese valor en la tabla y en la
+figura. En el tamaño máximo, el rango 46.683--52.124 $\mu$s muestra que
+el costo depende también de la variación entre ejecuciones. Los valores
+no son mediciones de una red entre computadoras distintas.
+
+Las capturas iniciales acreditan el caso básico y el mensaje mayor;
+el análisis cuantitativo utiliza \texttt{ping\_pong.csv}. La validación
+comprueba todo el último eco contra $\mathrm{valor}[i]=i\bmod1009$.
+
+\clearpage
 \subheading{Token Ring}
 
 \evidence{03_token_ring_send_recv}{Anillo con envíos y recepciones separados.}
 \evidence{04_token_ring_sendrecv}{Anillo con la instrucción MPI\_Sendrecv.}
+
+\clearpage
+\subsubsection*{Topología y protocolo}
 
 Se usan al menos cinco ranks. Para un rank $i$ de un comunicador de tamaño
 $P$, el vecino anterior y el siguiente son
@@ -258,14 +354,52 @@ El resumen visual dibuja la ruta $0\rightarrow1\rightarrow\cdots
 barras confirman el contador esperado, mientras el valor numérico final
 detecta un salto omitido o duplicado.
 
-\resultpending{Comparación de ambas variantes y verificación de visitas por rank}
+\subsubsection*{Resultados y carga de mensajes}
+El barrido utiliza cinco procesos y 1000 vueltas. Las seis filas registran
+token final 5000; el programa comprueba además 1000 visitas por rank.
+El tiempo local de rank 0 incluye la barrera final y excluye el
+\texttt{MPI\_Gather} posterior que reúne las visitas.
 
+\begin{center}\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Modo} & \textbf{Mediana (ms)} & \textbf{Media $\pm$ DE (ms)} & \textbf{Mín.--máx. (ms)}\\
+\midrule
+\texttt{send\_recv} & 2.242 & $2.245\pm0.122$ & 2.125--2.369\\
+\texttt{sendrecv} & 3.290 & $3.314\pm0.211$ & 3.116--3.535\\
+\bottomrule
+\end{tabular}\end{center}
+
+\clearpage
+\chart{02_token_ring}{Comparación descriptiva del anillo. Las implementaciones conservan un token válido, pero generan diferente cantidad de mensajes.}
+
+\subsubsection*{Diferencia funcional y diferencia temporal}
+La mediana de Sendrecv es 1.467 veces la de las llamadas separadas,
+equivalente a 46.71\,\% más tiempo. No es una comparación aislada de
+primitivas equivalentes. Con llamadas separadas se transfieren cinco
+mensajes por vuelta, es decir, 5000 mensajes de token. En Sendrecv hay
+cinco pasos por vuelta y cinco envíos por paso: 25\,000 mensajes,
+incluidos los centinelas. Se excluyen de estas cuentas las barreras
+y la recopilación de visitas.
+
+La variante Sendrecv simplifica la coordinación del desplazamiento,
+pero su implementación efectúa más trabajo de comunicación. El resultado
+no demuestra que la primitiva Sendrecv sea intrínsecamente más lenta ni
+que pierda su utilidad para evitar dependencias cíclicas. Las dos
+variantes cumplen la misma propiedad lógica del recorrido, no la misma
+carga de mensajes. Las capturas de una vuelta muestran una visita por
+rank y token final 5 en ambos modos.
+
+\clearpage
 \heading{Parte 2: comunicación sin bloqueo}
 
 \subheading{Recepción anticipada}
 
 \evidence{05_recepcion_entero}{Recepción básica de un entero y trabajo aritmético.}
 \evidence{06_recepcion_tamanos}{Ejemplo con un mensaje de mayor tamaño.}
+
+\clearpage
+\subsubsection*{Publicación anticipada y trabajo aritmético}
 
 Rank 1 inicia \texttt{MPI\_Irecv} antes de hacer aritmética. A continuación
 ejecuta un lote fijo de operaciones y llama a \texttt{MPI\_Test}; repite
@@ -288,12 +422,66 @@ secuencia \texttt{Irecv} $\rightarrow$ cálculo $\rightarrow$
 el estado del cálculo y \texttt{verify\_and\_sum} recorre todos los
 enteros después de completar la petición.
 
-\resultpending{Gráfica de tamaño de mensaje frente a tiempo y análisis del trabajo solapado}
+\subsubsection*{Resultados temporales}
+En todas las corridas se utilizan lotes de 1000 iteraciones aritméticas.
+El contador de operaciones corresponde a iteraciones del bucle, no a
+FLOP ni a instrucciones de procesador medidas.
 
+\begin{center}\small
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+\textbf{Bytes} & \textbf{Mediana ($\mu$s)} & \textbf{Media $\pm$ DE ($\mu$s)} & \textbf{Mín.--máx. ($\mu$s)} & \textbf{Envío ($\mu$s)}\\
+\midrule
+4 & 6.701 & $6.935\pm0.680$ & 6.402--7.701 & 2.801\\
+256 & 7.001 & $7.601\pm1.683$ & 6.301--9.502 & 3.601\\
+4096 & 19.804 & $21.171\pm2.543$ & 19.604--24.105 & 18.703\\
+65536 & 48.710 & $49.442\pm2.289$ & 47.609--52.008 & 47.409\\
+262144 & 121.223 & $124.056\pm19.213$ & 106.417--144.528 & 118.823\\
+\bottomrule
+\end{tabular}\end{center}
+{\small La última columna es la mediana del tiempo local de envío de rank 0;
+las demás columnas describen recepción, cálculo y sondeos de rank 1.}
+
+\clearpage
+\chart{03_recepcion_anticipada}{Tiempo del receptor frente a tamaño de mensaje. El eje horizontal es logarítmico y el vertical es lineal.}
+
+\subsubsection*{Trabajo realizado y datos recibidos}
+\begin{center}
+\begin{tabular}{@{}rrr@{}}
+\toprule
+\textbf{Enteros} & \textbf{Iteraciones mín.--máx.} & \textbf{Suma verificada}\\
+\midrule
+1 & 1000--2000 & 0\\
+64 & 1000--1000 & 2016\\
+1024 & 2000--3000 & 508641\\
+16384 & 2000--3000 & 8165256\\
+65536 & 1000--5000 & 33006624\\
+\bottomrule
+\end{tabular}\end{center}
+
+La mediana crece de 6.701 a 121.223 $\mu$s, un factor de 18.09. El
+trabajo total no es constante ni crece monótonamente con el mensaje:
+a 65\,536 enteros se realizan entre 1000 y 5000 iteraciones. Esa variación
+depende de cuándo el sondeo confirma la petición y no mide por sí sola
+el rendimiento del transporte. El bucle ejecuta al menos un lote antes
+de la primera consulta, incluso si el mensaje pudiera completarse antes.
+
+Los tiempos de envío y recepción tienen intervalos locales distintos;
+restarlos no aísla el costo del cálculo. La evidencia demuestra trabajo
+entre la publicación y la confirmación de la recepción. Sin una variante
+bloqueante equivalente y con el mismo trabajo total, no se puede
+cuantificar una aceleración por solapamiento. Las 15 sumas coinciden con
+el patrón $i\bmod1009$, y el estado aritmético visible impide que el
+resultado del cálculo sea descartado por el compilador.
+
+\clearpage
 \subheading{Productor-consumidor: pipeline por chunks}
 
 \evidence{07_pipeline_chunks}{Ejecución con chunks, mensaje STOP y suma correcta.}
 \evidence{08_pipeline_tamanos}{Ejecución con un tamaño de chunk distinto.}
+
+\clearpage
+\subsubsection*{Producción, consumo y finalización}
 
 Rank 0 crea un arreglo de $1\,048\,576$ enteros. El tamaño de chunk debe
 dividir al total exactamente; por ello todos los bloques tienen la misma
@@ -322,24 +510,102 @@ y posiblemente mayor costo de coordinación; chunks grandes reducen el
 número de mensajes, pero pueden limitar el solapamiento. La tendencia
 concreta debe decidirse con los datos observados.
 
-\resultpending{Tabla y gráfica de tamaño de chunk frente a tiempo total, más discusión}
+\subsubsection*{Resultados del barrido}
+El volumen total permanece en 1\,048\,576 enteros de cuatro bytes:
+4\,194\,304 bytes, o 4 MiB. Los tamaños son divisores exactos de ese
+total y la ventana conserva como máximo dos peticiones de envío.
 
+\begin{center}\small
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+\textbf{Enteros/chunk} & \textbf{Chunks} & \textbf{Mediana (ms)} & \textbf{Media $\pm$ DE (ms)} & \textbf{Mín.--máx. (ms)}\\
+\midrule
+256 & 4096 & 4.691 & $4.413\pm0.848$ & 3.462--5.088\\
+1024 & 1024 & 3.670 & $3.667\pm0.097$ & 3.569--3.762\\
+4096 & 256 & 2.844 & $2.940\pm0.333$ & 2.666--3.311\\
+16384 & 64 & 2.769 & $3.589\pm1.824$ & 2.318--5.679\\
+65536 & 16 & 2.279 & $2.271\pm0.118$ & 2.149--2.385\\
+\bottomrule
+\end{tabular}\end{center}
+
+\clearpage
+\chart{04_pipeline_chunks}{Tiempo total frente a bytes por chunk. Se mantiene un volumen de 4 MiB; las barras muestran el rango de las tres corridas.}
+
+\subsubsection*{Tamaño de bloque, dispersión y corrección}
+El menor tiempo mediano corresponde a chunks de 65\,536 enteros
+(262\,144 bytes), con 2.279 ms. Respecto a los chunks de 256 enteros,
+el tiempo mediano se reduce 51.42\,\% y la relación entre duraciones
+es 2.059. Es una comparación entre tamaños dentro del pipeline,
+no una aceleración frente a ejecución secuencial. Se identifica el
+mejor tamaño ensayado, no un óptimo universal.
+
+Los mensajes de datos disminuyen de 4096 a 16 sin alterar el volumen.
+El comportamiento es compatible con una reducción de la sobrecarga
+por mensaje; no se cronometraron por separado la transferencia, el
+procesamiento y la planificación para atribuir causalidad a una sola etapa.
+
+El caso de 16\,384 enteros presenta el mayor rango, 2.318--5.679 ms.
+Su media de 3.589 ms supera a la mediana de 2.769 ms. Se conserva la
+corrida de 5.679 ms sin diagnosticar una causa no medida. Las medianas
+decrecen con el tamaño, mientras las medias no son monótonas; por eso
+se muestran las observaciones individuales además del resumen.
+
+Las 15 sumas son 523\,641\,600, exactamente la suma de $i\bmod1000$
+para el arreglo completo. El consumidor compara cada elemento, suma
+en orden y confirma la cantidad de bloques. La señal STOP se completa
+antes de liberar buffers; las capturas muestran la terminación del
+bucle y las verificaciones correctas.
+
+\clearpage
 \heading{Discusión metodológica}
 
 Los experimentos sobre una sola máquina y WSL pueden reflejar costos de
 memoria compartida, planificación del sistema operativo y configuración
 de Open MPI, además de los costos del protocolo. El uso de
 \texttt{--oversubscribe} en Token Ring también puede introducir espera
-por CPU; por ello los tiempos entre ejercicios no se compararán como si
-midieran un mismo recurso. Cada gráfica responderá a la pregunta concreta
-del ejercicio y señalará su escala y unidad.
+por CPU si se exceden los recursos; la opción por sí sola no demuestra
+esa condición. Los tiempos entre ejercicios no se comparan como si
+midieran un mismo recurso. Cada gráfica responde a la pregunta concreta
+del ejercicio y señala su escala y unidad.
 
 Las salidas verificadas son una condición previa para interpretar los
-tiempos. Si una corrida no finaliza correctamente, se conserva el registro
-del error pero se excluye de la estadística hasta resolver su causa. Las
-tres repeticiones por configuración son un mínimo práctico; si hay alta
-dispersión, convendrá repetir más veces el caso afectado.
+tiempos. En el conjunto recibido no hay filas fallidas ni incompletas y
+no se descartó ningún resultado. Tres repeticiones permiten describir
+un mínimo, un máximo y una tendencia central, pero proporcionan poca
+evidencia sobre estabilidad a largo plazo. Los tamaños se recorren en
+orden fijo, no aleatorizado; cambios de carga o temperatura durante el
+barrido podrían influir. No existe una traza de esas condiciones.
 
+\subheading{Qué mide y qué no mide cada experimento}
+Ping-Pong mide un ciclo completo y promedia 1000 rondas. El anillo mide
+el protocolo de circulación hasta la barrera final. La recepción
+anticipada mezcla espera, cálculo y consultas locales. El pipeline
+incluye además procesamiento, comprobación de cada elemento, STOP y
+confirmación. No deben interpretarse sus diferencias como una
+clasificación global de primitivas MPI.
+
+El contador de iteraciones no es una tasa de FLOP. La presencia de
+\texttt{Isend} o \texttt{Irecv} no demuestra por sí misma transferencia
+asíncrona autónoma ni una aceleración: describe la interfaz no bloqueante
+y la posibilidad de continuar trabajo antes de completar la petición.
+La mejora entre tamaños del pipeline no es \emph{speedup} frente a un
+programa secuencial. Estas distinciones evitan conclusiones que los datos
+no respaldan.
+
+\subheading{Reproducibilidad y futuras extensiones}
+Los cuatro CSV se versionan junto con código, capturas y scripts. La
+reproducción del análisis no requiere nuevas ejecuciones MPI. Las
+figuras se exportan en PDF vectorial y PNG; el informe incorpora la
+versión vectorial. Los registros completos del barrido se conservan
+localmente fuera de Git y se comprobaron contra los CSV.
+
+Una ampliación del experimento podría aumentar repeticiones, aleatorizar
+el orden, controlar afinidad y carga, y añadir una referencia bloqueante
+con trabajo idéntico para estudiar el solapamiento. También convendría
+ensayar más tamaños de chunk y máquinas conectadas por red. Estas
+posibilidades no se presentan como pruebas ya realizadas.
+
+\clearpage
 \heading{Conclusiones}
 
 El diseño cubre los cuatro ejercicios del enunciado con parámetros
@@ -350,11 +616,34 @@ Las operaciones no bloqueantes permiten iniciar comunicación y continuar
 el cálculo o la producción de datos, siempre que se controle la vida de
 los buffers y la finalización de las peticiones.
 
-\resultpending{Conclusiones cuantitativas sustentadas en las gráficas y capturas del estudiante}
+\begin{enumerate}
+\item Ping-Pong conserva el último mensaje y exhibe crecimiento del RTT
+mediano de 0.495 a 50.171 $\mu$s. El costo no es proporcional únicamente
+al número de bytes y la mitad del RTT sigue siendo una estimación.
+\item Ambas variantes del anillo devuelven token 5000 tras 1000 vueltas
+con cinco ranks. La variante separada registra 2.242 ms frente a 3.290 ms
+con Sendrecv, pero los 5000 y 25\,000 mensajes respectivos impiden
+atribuir toda la diferencia al costo de la primitiva.
+\item La recepción anticipada verifica todas las sumas y realiza trabajo
+antes de confirmar la recepción. Sus medianas van de 6.701 a 121.223
+$\mu$s; estos tiempos incluyen cálculo y sondeos y no cuantifican una
+aceleración frente a una referencia bloqueante.
+\item El pipeline procesa 4 MiB y conserva la suma 523\,641\,600 en
+las 15 corridas. El mejor tamaño ensayado es 65\,536 enteros por chunk,
+con 2.279 ms y una reducción mediana de 51.42\,\% frente al bloque mínimo.
+\item Las 51 observaciones se mantienen. La mayor dispersión del pipeline
+en chunks de 16\,384 enteros hace necesario mostrar rango, media y
+mediana, en lugar de seleccionar solo la corrida más favorable.
+\item La corrección del protocolo, la finalización de peticiones y la
+vida de los buffers son condiciones previas para interpretar rendimiento.
+Las conclusiones se limitan al equipo, configuraciones y muestra disponibles.
+\end{enumerate}
 
+\clearpage
 \heading{Referencias}
 
 \begin{enumerate}
+\raggedright
 \item Universidad del Valle de Guatemala. \emph{Laboratorio \#3},
 Computación Paralela y Distribuida, semestre 2 de 2025. Enunciado PDF
 proporcionado para esta realización.
@@ -364,9 +653,15 @@ proporcionado para esta realización.
 \url{https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Test.3.html}.
 \item Open MPI. \emph{MPI\_Wtime}. Manual oficial.
 \url{https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Wtime.3.html}.
+\item Kassis, T., Agarwal, V., He, Y., Patel, D. y Brueckner, A. M.
+(2026). \emph{Scientific Agent Skills: A Library of Procedural Knowledge
+for Research Agents}. Apoyo metodológico mediante las skills
+\texttt{statistical-analysis} y \texttt{matplotlib}.
+\url{https://doi.org/10.48550/arXiv.2609.00065}.
 \end{enumerate}
 
-\heading{Apéndice: comandos de referencia}
+\clearpage
+\heading{Apéndice: ejecución y archivos experimentales}
 
 \begin{center}
 \fcolorbox{azul}{azulclaro}{\parbox{0.90\linewidth}{%
@@ -376,19 +671,25 @@ mpirun -np 2 ./build/ping\_pong 10 1\\
 mpirun --oversubscribe -np 5 ./build/token\_ring sendrecv 1\\
 mpirun -np 2 ./build/recepcion\_anticipada 1 1000\\
 mpirun -np 2 ./build/pipeline\_chunks 1048576 4096\\
-bash scripts/mediciones.sh
+bash scripts/mediciones.sh\\
+python3 scripts/analizar\_resultados.py\\
+python3 scripts/graficas\_resultados.py
 }}
 \end{center}
 
-La última instrucción ejecuta el barrido de mediciones del estudiante,
-genera cuatro CSV y conserva las salidas completas de cada corrida.
+El barrido de mediciones genera cuatro CSV y conserva las salidas completas
+de cada corrida. Se detiene si ya existen los CSV para evitar reemplazarlos;
+un nuevo barrido requiere archivar previamente tanto tablas como registros.
+Los dos scripts Python analizan los archivos existentes sin ejecutar MPI.
+El de gráficas requiere Matplotlib; el analizador usa únicamente la
+biblioteca estándar de Python.
 
-\subheading{Archivos que se incorporarán al cierre}
+\subheading{Archivos incorporados y trazabilidad}
 
 \begin{center}
-\begin{tabular}{@{}p{0.30\linewidth}p{0.58\linewidth}@{}}
+\begin{tabular}{@{}L{0.30\linewidth}L{0.58\linewidth}@{}}
 \toprule
-\textbf{Archivo} & \textbf{Uso en el informe final} \\
+\textbf{Archivo} & \textbf{Uso en este informe} \\
 \midrule
 \texttt{ping\_pong.csv} & Gráfica de bytes frente a ida y vuelta media \\
 \texttt{token\_ring.csv} & Comparación descriptiva de las dos variantes \\
@@ -402,7 +703,23 @@ Capturas PNG & Evidencia visible antes del análisis de cada apartado \\
 Cada CSV incluye tres repeticiones por configuración. Los registros
 originales de terminal se conservan por separado, de modo que cualquier
 valor de una figura pueda rastrearse hasta el comando y la ejecución que
-lo produjo. Las capturas y datos se incorporarán solo después de que el
-estudiante realice las pruebas en WSL.
+lo produjo. Las ocho capturas recibidas se conservaron sin alterar su
+contenido y se nombraron según las referencias de la fuente LaTeX.
+Las cuatro gráficas proceden exclusivamente del barrido CSV, no de
+transcribir las demostraciones de consola.
+
+\subheading{Comprobación de los requisitos}
+\begin{center}\small
+\begin{tabular}{@{}L{0.31\linewidth}L{0.60\linewidth}@{}}
+\toprule
+\textbf{Requisito} & \textbf{Implementación y evidencia}\\
+\midrule
+Dos ranks, entero y N rondas & Ping-Pong parametrizado; capturas, tabla y gráfica de tamaños.\\
+Anillo con más de cuatro ranks & Cinco ranks, vecinos modulares, dos variantes y verificación de visitas.\\
+Recepción y aritmética con Test & Irecv publicado antes del cálculo; contador y estado visibles; gráfica de tamaños.\\
+Chunks iguales y STOP con Isend & Divisibilidad validada, ventana de dos envíos, procesamiento inmediato y suma correcta.\\
+Informe y código fuente & Fuente LaTeX, PDF, cuatro programas documentados, README, CSV y scripts; ejecutables excluidos.\\
+\bottomrule
+\end{tabular}\end{center}
 
 \end{document}

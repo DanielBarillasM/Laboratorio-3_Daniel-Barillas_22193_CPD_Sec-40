@@ -108,6 +108,9 @@ bash scripts/mediciones.sh
 
 # Analizar los CSV ya existentes, sin ejecutar MPI ni modificar archivos
 python3 scripts/analizar_resultados.py
+
+# Regenerar las cuatro gráficas del informe (requiere Matplotlib)
+python3 scripts/graficas_resultados.py
 ```
 
 El barrido guarda tablas en `resultados/` y registros completos en
@@ -347,10 +350,11 @@ utilizados por el informe LaTeX. No se han reconstruido ni alterado sus valores.
 │   └── 04_pipeline_chunks.c         Productor–consumidor y señal STOP
 ├── scripts/
 │   ├── mediciones.sh                Barrido de los cuatro experimentos
-│   └── analizar_resultados.py       Validación y estadísticas descriptivas
+│   ├── analizar_resultados.py       Validación y estadísticas descriptivas
+│   └── graficas_resultados.py       Exportación de gráficas PDF y PNG
 ├── resultados/                     Cuatro CSV experimentales versionados
 ├── evidencias/                     Ocho capturas PNG originales
-├── informe/                        Fuente LaTeX y PDF
+├── informe/                        Fuente LaTeX, PDF y figuras/
 ├── Makefile
 ├── LICENSE
 └── README.md
@@ -361,10 +365,14 @@ LaTeX están excluidos de Git. Los ejecutables no forman parte de la entrega.
 
 ## Informe y referencias
 
-Fuente: [informe.tex](informe/informe.tex). El [PDF versionado](informe/informe.pdf)
-conserva la compilación anterior; los resultados completos actualizados se
-encuentran en este README y en los CSV. Para compilar desde una instalación de
-LaTeX con los paquetes utilizados por la fuente:
+Fuente: [informe.tex](informe/informe.tex). El [PDF actualizado](informe/informe.pdf)
+incluye las ocho evidencias, tablas, cuatro gráficas y conclusiones sustentadas
+en los 51 registros experimentales. Las gráficas PDF vectoriales y PNG están en
+[informe/figuras/](informe/figuras/). Su regeneración requiere Matplotlib
+(se utilizó la versión 3.10.1); el PDF puede recompilarse directamente con las
+figuras ya incluidas, sin instalar Python ni volver a ejecutar MPI.
+
+Para compilar desde una instalación de LaTeX con los paquetes de la fuente:
 
 ```bash
 cd informe
