@@ -21,6 +21,7 @@ emiten una fila CSV para facilitar las gráficas del informe.
 .
 ├── src/
 │   ├── common.h                     Utilidades de argumentos y errores MPI
+│   ├── visual.h                     Colores ANSI y paneles de terminal
 │   ├── 01_ping_pong.c               Intercambio bloqueante de ida y vuelta
 │   ├── 02_token_ring.c              Anillo: Send/Recv y Sendrecv
 │   ├── 03_recepcion_anticipada.c    Irecv + trabajo + Test
@@ -63,6 +64,48 @@ mkdir -p build
 mpicc -std=c11 -O2 -Wall -Wextra -Wpedantic src/01_ping_pong.c -o build/ping_pong
 ```
 
+## Presentación visual y lectura de la salida
+
+Cada programa presenta un panel de encabezado, un esquema del intercambio,
+configuración, comprobaciones y tiempos. Los colores ANSI distinguen etapas:
+azul para secciones, cian para rutas de mensajes, verde para verificaciones y
+amarillo para notas de interpretación. Las barras de 20 celdas representan
+**estado completado**, no una escala de rendimiento.
+
+Los dibujos se imprimen **después** de cerrar la medición con `MPI_Wtime`.
+Así, el tiempo registrado no incluye el costo de dibujar en terminal. La
+última línea de cada ejecución es una fila CSV sin códigos de color; el
+script puede guardarla directamente. Este es el aspecto conceptual:
+
+```text
+╔══════════════════════════════════════════════════════════════╗
+║  LABORATORIO 03  /  EJERCICIO 01                             ║
+╚══════════════════════════════════════════════════════════════╝
+PING-PONG
+  [RANK 0] ── PING ──▶ [RANK 1]
+  [RANK 0] ◀── PONG ── [RANK 1]
+  ✓ El último mensaje regresó sin cambios.
+  (a continuación aparecen configuración, tiempos y la fila CSV)
+```
+
+El esquema omite los números de una ejecución real; no representa resultados
+experimentales. Si la terminal no interpreta
+colores o deseas una salida plana, define `NO_COLOR`:
+
+```bash
+NO_COLOR=1 mpirun -np 2 ./build/ping_pong 10 1
+```
+
+El script de mediciones activa `NO_COLOR=1` automáticamente para mantener
+limpios los registros. Los diagramas siguen visibles en texto Unicode. Se
+recomienda usar una terminal UTF-8, como la de Ubuntu en WSL.
+
+El código está comentado por fases y llamadas MPI: qué hace cada rank,
+por qué se elige el orden de operaciones, qué buffers pueden reutilizarse,
+qué parte se cronometra y cómo se verifica el resultado. `common.h` contiene
+validación y manejo de errores; `visual.h` concentra la presentación para
+que no se mezcle con la lógica de comunicación.
+
 ## Ejecución demostrativa paso a paso
 
 Todos los comandos se ejecutan desde la raíz del repositorio. Las salidas
@@ -80,6 +123,10 @@ El primer comando intercambia un único entero diez veces. El segundo mantiene
 el mismo protocolo con 1024 enteros por mensaje (4096 bytes). El tiempo
 mostrado es la duración total y el promedio de ida y vuelta. La ida estimada
 divide este último entre dos y supone latencias aproximadamente simétricas.
+En el código, `round_as_origin` hace `Send` seguido de `Recv`, mientras
+`round_as_echo` hace `Recv` seguido de `Send`. El programa realiza una ronda
+de calentamiento, sincroniza y mide únicamente las `N` rondas solicitadas.
+Después compara el último mensaje con el patrón original.
 
 ### 2. Token Ring
 
@@ -93,6 +140,11 @@ permite la demostración incluso cuando WSL informa menos de cinco slots; si
 hay suficientes, se puede omitir. Ambas variantes deben devolver un token
 final de 5 y una visita por rank. El origen y destino de cada rank son
 `(i - 1 + size) % size` y `(i + 1) % size`.
+La figura del programa dibuja el anillo y una barra de visitas por rank.
+`send_recv` organiza cuidadosamente las llamadas separadas; `sendrecv`
+desplaza simultáneamente un valor válido y centinelas `-1`, manteniendo un
+único token auténtico. Al final debe verificarse `token_final = procesos ×
+vueltas` y cada rank debe tener exactamente `vueltas` visitas.
 
 ### 3. Recepción anticipada
 
@@ -104,6 +156,10 @@ mpirun -np 2 ./build/recepcion_anticipada 16384 1000
 El rank 1 publica `MPI_Irecv`, realiza 1000 operaciones aritméticas por lote y
 consulta `MPI_Test` hasta que el mensaje llega. El número total de operaciones
 puede variar entre corridas: depende de cuándo se complete la comunicación.
+La línea de tiempo impresa muestra la secuencia `Irecv → cálculo → Test`.
+`do_arithmetic` deja un estado numérico visible, y `verify_and_sum` revisa
+todos los enteros recibidos. El tiempo del receptor incluye trabajo y
+sondeos; no debe llamarse «latencia pura de la red».
 
 ### 4. Pipeline por chunks
 
@@ -115,6 +171,10 @@ mpirun -np 2 ./build/pipeline_chunks 1048576 65536
 Rank 0 crea un arreglo de 1 048 576 enteros y envía chunks iguales. Rank 1
 procesa cada bloque después de recibirlo. El último mensaje es `STOP`, enviado
 con `MPI_Isend`. La salida confirma el número de chunks y la suma verificada.
+El dibujo del pipeline enseña algunos chunks y la señal `STOP`. `produce`
+conserva hasta dos `MPI_Isend` pendientes; `consume` reconoce cada etiqueta,
+recibe y procesa cada bloque antes de pedir otro. La confirmación final
+compara la cantidad de chunks y la suma calculada por ambos ranks.
 
 ## Mediciones para las gráficas
 

@@ -157,6 +157,24 @@ ejecución y los CSV conservan los números exactos para las gráficas.
 Las figuras se elaborarán a partir de la mediana de tres repeticiones;
 si hay variabilidad apreciable, se mostrarán los valores individuales.
 
+\subheading{Presentación de consola y trazabilidad}
+
+Los cuatro programas comparten una presentación textual en terminal:
+encabezados azules, rutas de mensajes cian, comprobaciones verdes y notas
+amarillas. Los diagramas explican el recorrido de los datos, pero no
+representan una escala física de tiempo. Las barras de veinte celdas
+indican finalización o visitas verificadas; la medición numérica siempre
+aparece por separado. La variable \texttt{NO\_COLOR} elimina los códigos
+ANSI cuando se preparan registros de texto. La última línea se conserva
+como CSV puro para evitar transcribir tiempos desde las capturas.
+
+La implementación separa la lógica MPI de la presentación mediante
+\texttt{common.h} y \texttt{visual.h}. Cada programa documenta sus
+argumentos, roles de los ranks, etiquetas, buffers, orden de llamadas,
+verificación y límites de la región cronometrada. Los dibujos se imprimen
+\emph{después} de calcular el tiempo con \texttt{MPI\_Wtime}; así no
+alteran las comparaciones solicitadas.
+
 \begin{center}
 \begin{tabular}{@{}p{0.27\linewidth}p{0.30\linewidth}p{0.34\linewidth}@{}}
 \toprule
@@ -170,7 +188,6 @@ Pipeline & Chunks de 256 a 65536 enteros & 1\,048\,576 enteros totales, 2 ranks 
 \end{tabular}
 \end{center}
 
-\clearpage
 \heading{Parte 1: comunicación con bloqueo}
 
 \subheading{Ping-Pong}
@@ -185,6 +202,12 @@ el caso básico y el estudio de tamaños, el segundo argumento controla el
 número de enteros: con valor 1 se envía un entero, y con valores mayores se
 envía un arreglo de enteros. El último mensaje devuelto se compara con el
 patrón original antes de informar que la prueba fue correcta.
+
+La implementación separa las dos perspectivas en
+\texttt{round\_as\_origin} y \texttt{round\_as\_echo}. La salida dibuja
+PING y PONG con etiquetas diferentes, muestra N rondas completadas y
+presenta el tiempo solo después de verificar el mensaje. Esto permite
+relacionar la captura con las llamadas MPI del código.
 
 La duración total medida en rank 0 se divide entre N para obtener la
 latencia media de ida y vuelta:
@@ -230,6 +253,11 @@ establecer el orden seguro de cada rank. El centinela hace explícito el
 estado vacío del anillo y permite que todos llamen a \texttt{MPI\_Sendrecv}
 en cada paso, aunque solo un mensaje contenga el token verdadero.
 
+El resumen visual dibuja la ruta $0\rightarrow1\rightarrow\cdots
+\rightarrow P-1\rightarrow0$ y una barra de visitas por rank. Las
+barras confirman el contador esperado, mientras el valor numérico final
+detecta un salto omitido o duplicado.
+
 \resultpending{Comparación de ambas variantes y verificación de visitas por rank}
 
 \heading{Parte 2: comunicación sin bloqueo}
@@ -254,6 +282,12 @@ del receptor incluye cómputo y sondeo; por ello no debe interpretarse como
 latencia pura de red. La cantidad de trabajo realizado antes de recibir
 puede cambiar entre corridas según la planificación de procesos.
 
+La línea de tiempo de la terminal distingue el envío de rank 0 de la
+secuencia \texttt{Irecv} $\rightarrow$ cálculo $\rightarrow$
+\texttt{MPI\_Test} de rank 1. \texttt{do\_arithmetic} mantiene visible
+el estado del cálculo y \texttt{verify\_and\_sum} recorre todos los
+enteros después de completar la petición.
+
 \resultpending{Gráfica de tamaño de mensaje frente a tiempo y análisis del trabajo solapado}
 
 \subheading{Productor-consumidor: pipeline por chunks}
@@ -275,6 +309,12 @@ Al final, el consumidor comunica al productor el número de chunks y su
 suma. Rank 0 compara ambos contra los valores previstos. El tiempo total
 se toma en rank 0 y termina después de la confirmación del consumidor y
 una barrera final; incluye transferencia y procesamiento del lote completo.
+
+La figura textual muestra varios chunks en el trayecto productor-consumidor
+y un segundo mensaje de control STOP. La función \texttt{produce}
+administra las dos peticiones pendientes; \texttt{consume} inspecciona
+etiqueta y tamaño de cada mensaje, procesa el bloque y sale del bucle
+únicamente tras recibir STOP. La figura se genera después de la medición.
 
 El número de chunks es $C=M/B$, donde $M$ es la cantidad total de enteros
 y $B$ el tamaño de chunk en enteros. Chunks pequeños implican más mensajes
@@ -342,5 +382,27 @@ bash scripts/mediciones.sh
 
 La última instrucción ejecuta el barrido de mediciones del estudiante,
 genera cuatro CSV y conserva las salidas completas de cada corrida.
+
+\subheading{Archivos que se incorporarán al cierre}
+
+\begin{center}
+\begin{tabular}{@{}p{0.30\linewidth}p{0.58\linewidth}@{}}
+\toprule
+\textbf{Archivo} & \textbf{Uso en el informe final} \\
+\midrule
+\texttt{ping\_pong.csv} & Gráfica de bytes frente a ida y vuelta media \\
+\texttt{token\_ring.csv} & Comparación descriptiva de las dos variantes \\
+\texttt{recepcion\_anticipada.csv} & Tiempo y trabajo efectuado según bytes \\
+\texttt{pipeline\_chunks.csv} & Gráfica de bytes por chunk frente a tiempo total \\
+Capturas PNG & Evidencia visible antes del análisis de cada apartado \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Cada CSV incluye tres repeticiones por configuración. Los registros
+originales de terminal se conservan por separado, de modo que cualquier
+valor de una figura pueda rastrearse hasta el comando y la ejecución que
+lo produjo. Las capturas y datos se incorporarán solo después de que el
+estudiante realice las pruebas en WSL.
 
 \end{document}
