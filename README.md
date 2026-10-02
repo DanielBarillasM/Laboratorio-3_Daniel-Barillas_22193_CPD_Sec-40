@@ -8,7 +8,7 @@ Daniel Barillas · Carné 22193 · Sección 40
 
 `C11` · `Open MPI` · `Ubuntu / WSL` · `4 ejercicios` · `51 mediciones`
 
-[Ejecución](#compilación-y-ejecución) · [Resultados](#resultados-experimentales) · [Evidencias](#evidencias-de-ejecución) · [Informe](informe/informe.tex)
+[Ejecución](#compilación-y-ejecución) · [Resultados](#resultados-experimentales) · [Evidencias](#evidencias-de-ejecución) · [PDF](informe/informe.pdf) · [Auditoría](AUDITORIA.md)
 
 </div>
 
@@ -47,14 +47,19 @@ resumir los resultados; no es necesario para ejecutar los programas MPI.
 ### 01 · Ping-Pong
 
 ```bash
-# Sintaxis: ping_pong <rondas_N> <enteros_por_mensaje>
+# Sintaxis: ping_pong <rondas_N> <enteros_por_mensaje> [--warmup]
 mpirun -np 2 ./build/ping_pong 10 1
 mpirun -np 2 ./build/ping_pong 1000 1024
+
+# Una ronda preparatoria adicional para reproducir el protocolo del barrido
+mpirun -np 2 ./build/ping_pong 1000 1024 --warmup
 ```
 
 Rank 0 envía el mensaje y espera su devolución; rank 1 recibe y devuelve el
-mismo contenido. Hay una ronda de calentamiento fuera de la medición. La
-salida informa tiempo total, RTT medio por ronda y estimación de ida `RTT/2`.
+mismo contenido. Por defecto realiza **exactamente N rondas**, sin intercambios
+adicionales. `--warmup` añade una ronda preparatoria fuera del cronómetro;
+las N rondas restantes son las medidas. La salida identifica esta opción e
+informa tiempo total, RTT medio por ronda y estimación de ida `RTT/2`.
 
 ### 02 · Token Ring
 
@@ -113,7 +118,8 @@ python3 scripts/analizar_resultados.py
 python3 scripts/graficas_resultados.py
 ```
 
-El barrido guarda tablas en `resultados/` y registros completos en
+El barrido usa `--warmup` en Ping-Pong, conservando una ronda preparatoria y
+1000 rondas medidas. Guarda tablas en `resultados/` y registros completos en
 `resultados/brutos/`. Para proteger las mediciones, se detiene si ya existen los
 CSV, como ocurre en este repositorio. Para obtener un nuevo conjunto, deben
 archivarse previamente los cuatro CSV y sus registros brutos en otra carpeta.
@@ -130,12 +136,31 @@ finalización, no rendimiento. Para desactivar el color:
 NO_COLOR=1 mpirun -np 2 ./build/ping_pong 10 1
 ```
 
+Para regenerar gráficas en WSL, Matplotlib puede instalarse en un entorno
+aislado; no es necesario para analizar los CSV ni para compilar el informe
+con las figuras incluidas:
+
+```bash
+sudo apt install python3-venv
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install matplotlib==3.10.1
+python scripts/graficas_resultados.py
+```
+
 ## Resultados experimentales
 
 Los resultados proceden de los cuatro [CSV versionados](resultados/):
 **51 ejecuciones, 17 configuraciones y 3 repeticiones por configuración**.
 Las 51 filas coinciden con la última línea de sus registros locales originales.
 No hay configuraciones faltantes ni repeticiones duplicadas.
+
+**Trazabilidad del calentamiento:** los CSV y las capturas de Ping-Pong se
+obtuvieron con la versión que preparaba una ronda implícita antes de medir.
+La versión final conserva ese protocolo con `--warmup` en el barrido y lo
+desactiva por defecto para cumplir literalmente N intercambios. No se han
+reescrito las mediciones ni se presentan las capturas históricas como una
+nueva ejecución del código corregido.
 
 Se presenta la **mediana** como resumen principal, acompañada por la media,
 la desviación estándar muestral (**DE**, divisor `n − 1`) y el intervalo
@@ -351,17 +376,20 @@ utilizados por el informe LaTeX. No se han reconstruido ni alterado sus valores.
 ├── scripts/
 │   ├── mediciones.sh                Barrido de los cuatro experimentos
 │   ├── analizar_resultados.py       Validación y estadísticas descriptivas
-│   └── graficas_resultados.py       Exportación de gráficas PDF y PNG
+│   ├── graficas_resultados.py       Exportación de gráficas PDF y PNG
+│   └── preparar_entrega.ps1         ZIP verificado, sin ejecutables
 ├── resultados/                     Cuatro CSV experimentales versionados
 ├── evidencias/                     Ocho capturas PNG originales
 ├── informe/                        Fuente LaTeX, PDF y figuras/
 ├── Makefile
 ├── LICENSE
+├── AUDITORIA.md
 └── README.md
 ```
 
 `build/`, los registros locales de `resultados/brutos/` y los auxiliares de
-LaTeX están excluidos de Git. Los ejecutables no forman parte de la entrega.
+LaTeX están excluidos de Git. El ZIP generado en `entrega/` tampoco se
+versiona. Los ejecutables no forman parte de la entrega.
 
 ## Informe y referencias
 
@@ -378,7 +406,27 @@ Para compilar desde una instalación de LaTeX con los paquetes de la fuente:
 cd informe
 pdflatex -interaction=nonstopmode -halt-on-error informe.tex
 pdflatex -interaction=nonstopmode -halt-on-error informe.tex
+pdflatex -interaction=nonstopmode -halt-on-error informe.tex
 ```
+
+### Paquete de entrega
+
+Desde **PowerShell**, en la raíz del repositorio:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/preparar_entrega.ps1
+```
+
+Genera `entrega/Laboratorio-3_Daniel-Barillas_22193_CPD_Sec-40.zip` con el PDF,
+la fuente LaTeX y sus figuras, los cuatro `.c`, los dos encabezados `.h`,
+Makefile, README, auditoría, scripts, CSV y capturas. La lista de inclusión es
+explícita: no incorpora `build/`, `.git/`, registros brutos, auxiliares ni
+ejecutables. Se detiene si el ZIP ya existe para evitar sobrescribirlo.
+
+La entrega en Canvas corresponde al PDF y los fuentes; ambos están incluidos
+en el paquete. Los encabezados deben acompañar a los `.c` para compilarlos.
+La publicación en GitHub no sustituye la entrega en Canvas. Véase
+[AUDITORIA.md](AUDITORIA.md) para los requisitos y el alcance de las comprobaciones.
 
 El enunciado del curso, *Laboratorio #3*, define los cuatro ejercicios.
 La semántica de las operaciones y del cronómetro se documenta en Open MPI:

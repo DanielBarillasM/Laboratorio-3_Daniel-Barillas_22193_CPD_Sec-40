@@ -151,8 +151,10 @@ envío debe completarse antes de modificar o liberar su buffer.
 \texttt{MPI\_Wtime} entrega segundos transcurridos según el reloj local
 del proceso. Cada duración se calcula restando dos lecturas tomadas en el
 \emph{mismo} rank; no se restan marcas temporales de ranks distintos. Se
-realiza una ronda de calentamiento fuera del cronómetro en Ping-Pong y
-se realizan tres repeticiones por configuración. La mediana reduce la
+realiza una ronda de calentamiento fuera del cronómetro en el barrido de
+Ping-Pong mediante la opción explícita \texttt{-{}-warmup}; sin esa opción,
+el caso básico ejecuta exactamente N rondas, sin intercambios adicionales.
+Se realizan tres repeticiones por configuración. La mediana reduce la
 influencia de una corrida aislada sobre el resumen, pero no sustituye
 la presentación de la dispersión.
 
@@ -181,7 +183,7 @@ Generación de gráficas & Python 3.13.1 y Matplotlib 3.10.1 en Windows \\
 
 Esta consulta describe el entorno instalado, no una traza histórica de
 carga, frecuencia o afinidad de cada corrida. El comando del anillo incluye
-\texttt{--oversubscribe}; esa opción permite superar los slots que informe
+\texttt{-{}-oversubscribe}; esa opción permite superar los slots que informe
 MPI, pero no demuestra que efectivamente se hayan excedido ni garantiza
 un núcleo dedicado por rank.
 
@@ -194,6 +196,11 @@ Las 51 filas de los CSV coinciden con la última línea de sus registros
 originales locales. Hay 17 configuraciones completas, con repeticiones
 1, 2 y 3, sin filas faltantes ni duplicadas. Las capturas corresponden a
 demostraciones adicionales: sus tiempos no se mezclan con el barrido.
+Las mediciones y capturas de Ping-Pong proceden de la versión con una
+ronda de calentamiento implícita. En la versión final esa preparación
+requiere \texttt{-{}-warmup}, preservando el protocolo del barrido sin
+alterar los CSV históricos. El caso básico corregido se comprobó mediante
+inspección y compilación, sin atribuirle nuevas mediciones.
 
 Las tablas presentan mediana, media, desviación estándar muestral (DE)
 y mínimo--máximo. La DE se calcula con divisor $n-1$, con $n=3$. No se
@@ -201,6 +208,9 @@ eliminó ninguna observación. Las figuras muestran las tres corridas, la
 mediana y el rango observado; las barras \emph{no} son intervalos de
 confianza. Las líneas entre medianas son guías de lectura, no modelos
 ajustados. Los valores se redondean a tres decimales para presentación.
+
+Los puntos de las tres corridas tienen un pequeño desplazamiento
+horizontal para distinguirlos; no representan tamaños de mensaje distintos.
 
 El análisis es descriptivo: con tres repeticiones por configuración no
 se afirma significancia estadística ni una mejora generalizable. El
@@ -244,11 +254,8 @@ Pipeline & Chunks de 256 a 65536 enteros & 1\,048\,576 enteros totales, 2 ranks 
 
 \subheading{Ping-Pong}
 
-\evidence{01_ping_pong_entero}{Ping-Pong: 10 rondas con un entero. El mensaje regresa sin cambios.}
-\evidence{02_ping_pong_tamanos}{Ping-Pong: 1000 rondas con 1024 enteros, equivalentes a 4096 bytes por mensaje.}
-
-\clearpage
-\subsubsection*{Diseño, medición y corrección}
+\subsubsection*{Inciso 1: entero y N intercambios}
+\evidence{01_ping_pong_entero}{Demostración original: 10 rondas medidas con un entero, precedidas por calentamiento. El mensaje regresa sin cambios.}
 
 El rank 0 genera un buffer de enteros y lo envía a rank 1. Este lo recibe y
 lo devuelve sin modificarlo. Una ronda consta de un envío y una devolución;
@@ -257,12 +264,18 @@ el caso básico y el estudio de tamaños, el segundo argumento controla el
 número de enteros: con valor 1 se envía un entero, y con valores mayores se
 envía un arreglo de enteros. El último mensaje devuelto se compara con el
 patrón original antes de informar que la prueba fue correcta.
+Sin \texttt{-{}-warmup}, el programa final hace exactamente N intercambios;
+con la opción añade una única ronda preparatoria, excluida de la medición.
 
 La implementación separa las dos perspectivas en
 \texttt{round\_as\_origin} y \texttt{round\_as\_echo}. La salida dibuja
 PING y PONG con etiquetas diferentes, muestra N rondas completadas y
 presenta el tiempo solo después de verificar el mensaje. Esto permite
 relacionar la captura con las llamadas MPI del código.
+
+\clearpage
+\subsubsection*{Inciso 2: MPI\_Wtime, tamaños y tendencia}
+\evidence{02_ping_pong_tamanos}{Demostración original con calentamiento: 1000 rondas medidas y 1024 enteros, equivalentes a 4096 bytes por mensaje.}
 
 La duración total medida en rank 0 se divide entre N para obtener la
 latencia media de ida y vuelta:
@@ -317,11 +330,8 @@ comprueba todo el último eco contra $\mathrm{valor}[i]=i\bmod1009$.
 \clearpage
 \subheading{Token Ring}
 
+\subsubsection*{Inciso 1: anillo con más de cuatro procesos}
 \evidence{03_token_ring_send_recv}{Anillo con envíos y recepciones separados.}
-\evidence{04_token_ring_sendrecv}{Anillo con la instrucción MPI\_Sendrecv.}
-
-\clearpage
-\subsubsection*{Topología y protocolo}
 
 Se usan al menos cinco ranks. Para un rank $i$ de un comunicador de tamaño
 $P$, el vecino anterior y el siguiente son
@@ -337,7 +347,13 @@ debe registrar exactamente $V$ visitas.
 En la primera variante, rank 0 envía para iniciar cada vuelta y después
 recibe el token de su vecino anterior. Los otros ranks reciben primero y
 luego envían. Este orden evita que todos queden esperando dentro de un
-envío bloqueante. En la segunda variante, todos los ranks ejecutan
+envío bloqueante.
+
+\clearpage
+\subsubsection*{Incisos 2 y 3: Sendrecv y diferencia con Send/Recv}
+\evidence{04_token_ring_sendrecv}{Anillo con MPI\_Sendrecv: evidencia para el ajuste del programa y su comparación con llamadas separadas.}
+
+En la segunda variante, todos los ranks ejecutan
 \texttt{MPI\_Sendrecv} en cada paso: el rank que no posee el token envía
 un centinela $-1$, mientras el poseedor envía el valor válido. Una vuelta
 consta de $P$ pasos; sigue existiendo un único token válido.
@@ -395,11 +411,8 @@ rank y token final 5 en ambos modos.
 
 \subheading{Recepción anticipada}
 
+\subsubsection*{Incisos 1 y 2: recepción, aritmética y MPI\_Test}
 \evidence{05_recepcion_entero}{Recepción básica de un entero y trabajo aritmético.}
-\evidence{06_recepcion_tamanos}{Ejemplo con un mensaje de mayor tamaño.}
-
-\clearpage
-\subsubsection*{Publicación anticipada y trabajo aritmético}
 
 Rank 1 inicia \texttt{MPI\_Irecv} antes de hacer aritmética. A continuación
 ejecuta un lote fijo de operaciones y llama a \texttt{MPI\_Test}; repite
@@ -421,6 +434,15 @@ secuencia \texttt{Irecv} $\rightarrow$ cálculo $\rightarrow$
 \texttt{MPI\_Test} de rank 1. \texttt{do\_arithmetic} mantiene visible
 el estado del cálculo y \texttt{verify\_and\_sum} recorre todos los
 enteros después de completar la petición.
+
+\texttt{MPI\_Test} comprueba la finalización de la \emph{petición MPI},
+no la operación aritmética. Esta distinción concreta el sondeo solicitado:
+el cálculo se ejecuta sincrónicamente por lotes mientras la recepción sigue
+pendiente, y su estado y contador se imprimen al confirmar el mensaje.
+
+\clearpage
+\subsubsection*{Inciso 3: medición según tamaño del mensaje}
+\evidence{06_recepcion_tamanos}{Recepción anticipada con un mensaje mayor: datos, trabajo efectuado y tiempos locales.}
 
 \subsubsection*{Resultados temporales}
 En todas las corridas se utilizan lotes de 1000 iteraciones aritméticas.
@@ -477,11 +499,8 @@ resultado del cálculo sea descartado por el compilador.
 \clearpage
 \subheading{Productor-consumidor: pipeline por chunks}
 
+\subsubsection*{Incisos 1 y 2: chunks iguales y STOP con Isend}
 \evidence{07_pipeline_chunks}{Ejecución con chunks, mensaje STOP y suma correcta.}
-\evidence{08_pipeline_tamanos}{Ejecución con un tamaño de chunk distinto.}
-
-\clearpage
-\subsubsection*{Producción, consumo y finalización}
 
 Rank 0 crea un arreglo de $1\,048\,576$ enteros. El tamaño de chunk debe
 dividir al total exactamente; por ello todos los bloques tienen la misma
@@ -509,6 +528,10 @@ y $B$ el tamaño de chunk en enteros. Chunks pequeños implican más mensajes
 y posiblemente mayor costo de coordinación; chunks grandes reducen el
 número de mensajes, pero pueden limitar el solapamiento. La tendencia
 concreta debe decidirse con los datos observados.
+
+\clearpage
+\subsubsection*{Inciso 3: tiempo total frente al tamaño de chunk}
+\evidence{08_pipeline_tamanos}{Pipeline con otro tamaño de chunk: volumen fijo y distinto número de mensajes.}
 
 \subsubsection*{Resultados del barrido}
 El volumen total permanece en 1\,048\,576 enteros de cuatro bytes:
@@ -562,7 +585,7 @@ bucle y las verificaciones correctas.
 Los experimentos sobre una sola máquina y WSL pueden reflejar costos de
 memoria compartida, planificación del sistema operativo y configuración
 de Open MPI, además de los costos del protocolo. El uso de
-\texttt{--oversubscribe} en Token Ring también puede introducir espera
+\texttt{-{}-oversubscribe} en Token Ring también puede introducir espera
 por CPU si se exceden los recursos; la opción por sí sola no demuestra
 esa condición. Los tiempos entre ejercicios no se comparan como si
 midieran un mismo recurso. Cada gráfica responde a la pregunta concreta
@@ -668,7 +691,8 @@ for Research Agents}. Apoyo metodológico mediante las skills
 \ttfamily\small
 make\\
 mpirun -np 2 ./build/ping\_pong 10 1\\
-mpirun --oversubscribe -np 5 ./build/token\_ring sendrecv 1\\
+mpirun -np 2 ./build/ping\_pong 1000 1024 -{}-warmup\\
+mpirun -{}-oversubscribe -np 5 ./build/token\_ring sendrecv 1\\
 mpirun -np 2 ./build/recepcion\_anticipada 1 1000\\
 mpirun -np 2 ./build/pipeline\_chunks 1048576 4096\\
 bash scripts/mediciones.sh\\

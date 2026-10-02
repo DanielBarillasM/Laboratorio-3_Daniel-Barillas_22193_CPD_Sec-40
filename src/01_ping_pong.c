@@ -9,7 +9,7 @@
  *   4. Para variar el tamaño se usa un arreglo de enteros; elements=1
  *      conserva exactamente el caso del entero solicitado.
  *
- * Uso: mpirun -np 2 ./build/ping_pong <rondas_N> <elementos>
+ * Uso: mpirun -np 2 ./build/ping_pong <rondas_N> <elementos> [--warmup]
  * Ejemplo: mpirun -np 2 ./build/ping_pong 1000 256
  *
  * La presentación visual ocurre DESPUÉS del tramo cronometrado. La última
@@ -17,6 +17,7 @@
  */
 #include <stdio.h>   /* printf, puts y mensajes de error. */
 #include <stdlib.h>  /* free y códigos EXIT_SUCCESS / EXIT_FAILURE. */
+#include <string.h>  /* strcmp: validar la única opción de calentamiento. */
 
 #include "common.h" /* Validación de argumentos, memoria y llamadas MPI. */
 #include "visual.h" /* Colores, separadores y figuras para la terminal. */
@@ -71,7 +72,8 @@ static void round_as_echo(int *receive_buffer, int elements)
 }
 
 /* Mostrar el esquema y los tiempos después de terminar el experimento. */
-static void print_summary(int rounds, int elements, double total_seconds)
+static void print_summary(int rounds, int elements, int warmup,
+                          double total_seconds)
 {
     /* Un entero MPI_INT ocupa sizeof(int) bytes en esta máquina. */
     const size_t bytes = (size_t)elements * sizeof(int);
@@ -91,6 +93,8 @@ static void print_summary(int rounds, int elements, double total_seconds)
 
     lab_section("Configuración y verificación");
     printf("  Rondas solicitadas : %d\n", rounds);
+    printf("  Calentamiento      : %s\n",
+           warmup ? "1 ronda adicional, no medida" : "desactivado (exactamente N rondas)");
     printf("  Enteros por mensaje: %d\n", elements);
     printf("  Bytes por mensaje  : %zu\n", bytes);
     lab_bar("Rondas completas", 20);
@@ -118,6 +122,9 @@ int main(int argc, char **argv)
     /* El estudiante fija N y el tamaño del mensaje desde la terminal. */
     int rounds, elements;
 
+    /* El caso del enunciado no hace intercambios extra por defecto. */
+    int warmup = 0;
+
     /* Rank 0 necesita dos buffers; rank 1 solo el de recepción y eco. */
     int *send_buffer = NULL;
     int *receive_buffer;
@@ -139,10 +146,17 @@ int main(int argc, char **argv)
     LAB_MPI(MPI_Comm_rank(MPI_COMM_WORLD, &rank));
     LAB_MPI(MPI_Comm_size(MPI_COMM_WORLD, &size));
 
-    /* El ejercicio exige exactamente dos ranks y exactamente dos argumentos. */
+    /* Dos ranks y dos parámetros; el calentamiento es una opción explícita. */
     lab_require_size(size, 2, 2, rank);
-    lab_usage_if(argc != 3, rank,
-                 "ping_pong <rondas_N> <elementos_por_mensaje>");
+    lab_usage_if(argc != 3 && argc != 4, rank,
+                 "ping_pong <rondas_N> <elementos_por_mensaje> [--warmup]");
+
+    /* Rechazar cualquier tercera opción distinta, sin ignorar argumentos. */
+    if (argc == 4) {
+        lab_usage_if(strcmp(argv[3], "--warmup") != 0, rank,
+                     "ping_pong <rondas_N> <elementos_por_mensaje> [--warmup]");
+        warmup = 1; /* Ambos ranks leen la misma opción del comando MPI. */
+    }
 
     /* Rechazar cero, negativos, texto y valores fuera del rango int. */
     rounds = lab_positive_int(argv[1], "rondas_N", rank);
@@ -157,11 +171,17 @@ int main(int argc, char **argv)
         fill_message(send_buffer, elements);
     }
 
-    /* Una ronda de calentamiento no entra en la medición. */
-    if (rank == 0) {
-        round_as_origin(send_buffer, receive_buffer, elements);
-    } else {
-        round_as_echo(receive_buffer, elements);
+    /* Solo el barrido optativo añade una ronda FUERA del cronómetro.
+     * Sin --warmup, los únicos intercambios son las N rondas de abajo.
+     * El CSV mantiene su esquema: N siempre cuenta rondas medidas, nunca
+     * la preparación. La opción queda registrada en la salida de consola.
+     */
+    if (warmup) {
+        if (rank == 0) {
+            round_as_origin(send_buffer, receive_buffer, elements);
+        } else {
+            round_as_echo(receive_buffer, elements);
+        }
     }
 
     /* La barrera inicia la parte medida con ambos ranks preparados. */
@@ -177,7 +197,7 @@ int main(int argc, char **argv)
 
         /* La verificación se hace FUERA de la región cronometrada. */
         verify_echo(receive_buffer, elements);
-        print_summary(rounds, elements, total);
+        print_summary(rounds, elements, warmup, total);
     } else {
         /* Cada recepción de rank 1 corresponde a un envío de rank 0. */
         for (int round = 0; round < rounds; ++round) {

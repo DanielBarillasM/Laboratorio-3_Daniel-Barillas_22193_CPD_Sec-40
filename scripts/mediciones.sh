@@ -40,8 +40,10 @@ record_run() {
 
 for repetition in 1 2 3; do
     for elements in 1 64 1024 16384 65536; do
+        # Conservar el protocolo de las mediciones originales: una ronda
+        # preparatoria fuera del cronómetro y 1000 rondas medidas.
         record_run ping_pong "ping_pong_e${elements}" "$repetition" \
-            mpirun -np 2 ./build/ping_pong 1000 "$elements"
+            mpirun -np 2 ./build/ping_pong 1000 "$elements" --warmup
     done
 
     for mode in send_recv sendrecv; do

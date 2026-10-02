@@ -19,6 +19,11 @@ build/
 # revisar las mediciones y las capturas del estudiante.
 resultados/brutos/
 
+# Paquete de entrega generado localmente, sin ejecutables.
+entrega/
+.venv/
+__pycache__/
+
 # Archivos del editor/sistema.
 .DS_Store
 Thumbs.db

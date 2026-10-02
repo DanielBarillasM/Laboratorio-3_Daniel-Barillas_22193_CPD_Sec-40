@@ -19,7 +19,7 @@
 #include <stdio.h>   /* Resumen legible y mensajes de error. */
 #include <stdlib.h>  /* free y códigos de salida. */
 
-#include "common.h" /* MPI_CHECK, lectura segura y reserva de memoria. */
+#include "common.h" /* LAB_MPI, lectura segura y reserva de memoria. */
 #include "visual.h" /* Línea de tiempo y paneles de terminal. */
 
 /* Diferenciar la transferencia del dato de la del tiempo del emisor. */
