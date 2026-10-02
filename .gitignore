@@ -1,48 +1,55 @@
-# Prerequisites
-*.d
-
-# Object files
+# Ejecutables y objetos generados por make.
+build/
 *.o
+*.out
+*.exe
+
+# Archivos temporales de LaTeX; el PDF final sí se versiona.
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# Salidas locales de pruebas; los datos definitivos se añadirán tras
+# revisar las mediciones y las capturas del estudiante.
+resultados/brutos/
+
+# Archivos del editor/sistema.
+.DS_Store
+Thumbs.db
+*.swp
+
+# Patrones del .gitignore original del repositorio.
+*.d
 *.ko
 *.obj
 *.elf
-
-# Linker output
 *.ilk
 *.map
 *.exp
-
-# Precompiled Headers
 *.gch
 *.pch
-
-# Libraries
 *.lib
 *.a
 *.la
 *.lo
-
-# Shared objects (inc. Windows DLLs)
 *.dll
 *.so
 *.so.*
 *.dylib
-
-# Executables
-*.exe
-*.out
 *.app
 *.i*86
 *.x86_64
 *.hex
-
-# Debug files
 *.dSYM/
 *.su
 *.idb
 *.pdb
-
-# Kernel Module Compile Results
 *.mod*
 *.cmd
 .tmp_versions/
@@ -50,6 +57,4 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-
-# debug information files
 *.dwo

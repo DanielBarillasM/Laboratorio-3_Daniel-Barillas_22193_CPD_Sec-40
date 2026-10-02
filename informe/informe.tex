@@ -1,0 +1,346 @@
+% Laboratorio 3 - informe técnico.
+% Compilar desde esta carpeta: pdflatex informe.tex (dos veces para el índice).
+% Las evidencias y los resultados reales se integrarán tras la ejecución en WSL.
+\documentclass[11pt,letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+\geometry{left=2.7cm,right=2.7cm,top=2.6cm,bottom=2.7cm}
+\definecolor{azul}{HTML}{10385F}
+\definecolor{azulclaro}{HTML}{EAF1F6}
+\definecolor{gris}{HTML}{526171}
+\hypersetup{colorlinks=true,linkcolor=azul,urlcolor=azul,pdftitle={Laboratorio 3 - MPI},pdfauthor={Daniel Barillas}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\setlength{\emergencystretch}{2em}
+\renewcommand{\contentsname}{Contenido}
+\renewcommand{\abstractname}{Resumen}
+\renewcommand{\refname}{Referencias}
+\pagestyle{myheadings}
+\markright{\small Laboratorio 3 \quad | \quad Computación Paralela y Distribuida}
+
+\newcommand{\heading}[1]{\section{\textcolor{azul}{#1}}}
+\newcommand{\subheading}[1]{\subsection{\textcolor{azul}{#1}}}
+\newcommand{\pendingbox}[1]{%
+  \par\medskip\noindent\fcolorbox{azul}{azulclaro}{%
+    \parbox{0.88\linewidth}{\vspace{0.55em}\textcolor{azul}{\textbf{Pendiente de evidencia:}} #1\vspace{0.55em}}}
+  \par\medskip}
+\newcommand{\evidence}[2]{%
+  \IfFileExists{../evidencias/#1.png}{%
+    \begin{center}\includegraphics[width=0.88\linewidth,height=0.33\textheight,keepaspectratio]{../evidencias/#1.png}\\
+    {\small\textcolor{gris}{#2}}\end{center}%
+  }{\pendingbox{Captura \texttt{\detokenize{#1.png}}. #2}}}
+\newcommand{\resultpending}[1]{\pendingbox{#1. Se incorporará únicamente con las mediciones reales del estudiante.}}
+
+\begin{document}
+\thispagestyle{empty}
+\vspace*{2.4cm}
+{\color{azul}\rule{\linewidth}{1.8pt}}\\[1.1cm]
+{\Large Universidad del Valle de Guatemala}\\[0.4cm]
+{\large Computación Paralela y Distribuida}\\[2.2cm]
+{\Huge\bfseries\color{azul} Laboratorio 3}\\[0.35cm]
+{\Large Comunicación bloqueante y no bloqueante con MPI}\\[0.8cm]
+{\color{azul}\rule{0.62\linewidth}{0.8pt}}\\[2.0cm]
+\begin{tabular}{@{}ll@{}}
+\textbf{Estudiante:} & Daniel Barillas \\
+\textbf{Carné:} & 22193 \\
+\textbf{Sección:} & 40 \\
+\textbf{Docente (enunciado):} & Marlon Fuentes \\
+\textbf{Entrega vigente:} & Sábado 3 de octubre de 2026, 23:59 \\
+\end{tabular}
+\vfill
+{\small\color{gris}Borrador técnico. Las evidencias, gráficas y conclusiones
+experimentales se completarán después de la ejecución del estudiante en WSL.}
+\newpage
+
+\begin{abstract}
+Este informe documenta el diseño de cuatro programas de comunicación
+punto a punto con MPI. Los dos primeros emplean llamadas bloqueantes para
+resolver un intercambio Ping-Pong y un anillo con un único token. Los dos
+restantes estudian comunicación no bloqueante mediante una recepción
+anticipada con trabajo aritmético y un productor-consumidor que transfiere
+un arreglo por chunks. Se define un protocolo reproducible de medición con
+\texttt{MPI\_Wtime}, validación de datos y repeticiones por configuración.
+Las observaciones cuantitativas se incorporarán cuando existan resultados
+obtenidos por el estudiante; este borrador no presupone ninguna tendencia.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\heading{Introducción y alcance}
+
+MPI (Message Passing Interface) permite que procesos independientes
+intercambien datos mediante mensajes. Cada proceso conoce su identificador
+mediante \texttt{MPI\_Comm\_rank} y el tamaño de su comunicador mediante
+\texttt{MPI\_Comm\_size}. En los cuatro programas se utiliza
+\texttt{MPI\_COMM\_WORLD}, que agrupa a los procesos iniciados por
+\texttt{mpirun}. La coordinación correcta depende de emparejar origen,
+destino, etiqueta y comunicador en cada transferencia.
+
+El enunciado divide el trabajo en dos partes: comunicación con bloqueo y
+comunicación sin bloqueo. Cada parte contiene dos ejercicios. La tabla de
+evaluación del PDF muestra cuatro partes de 25\,\%, aunque solo las primeras
+dos están nombradas en el texto; por ello este informe presenta cuatro
+secciones de ejercicios sin asignarles oficialmente un porcentaje.
+
+\begin{center}
+\begin{tabular}{@{}p{0.20\linewidth}p{0.33\linewidth}p{0.38\linewidth}@{}}
+\toprule
+\textbf{Ejercicio} & \textbf{Comunicación} & \textbf{Evidencia requerida} \\
+\midrule
+Ping-Pong & \texttt{MPI\_Send} y \texttt{MPI\_Recv} & Tiempo frente a tamaño de mensaje \\
+Token Ring & \texttt{MPI\_Sendrecv} y variante separada & Recorrido correcto y explicación de diferencias \\
+Recepción anticipada & \texttt{MPI\_Irecv}, \texttt{MPI\_Isend}, \texttt{MPI\_Test} & Trabajo efectuado y tiempo frente a tamaño \\
+Pipeline por chunks & \texttt{MPI\_Isend}, recepción por chunk y STOP & Tiempo total frente a tamaño de chunk \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\heading{Fundamentos de comunicación MPI}
+
+\subheading{Llamadas bloqueantes}
+
+En una recepción bloqueante, la llamada retorna cuando el buffer contiene
+el mensaje recibido. En un envío bloqueante, el retorno indica que el
+buffer del emisor puede reutilizarse; no implica por sí solo que el receptor
+haya terminado de procesar los datos. La pareja de llamadas exige un orden
+compatible entre procesos. Si todos los participantes esperan una
+operación que nadie puede completar, se produce un bloqueo circular.
+
+\texttt{MPI\_Sendrecv} combina en una sola llamada un envío y una recepción.
+La operación es bloqueante, pero el subsistema MPI coordina ambos lados y
+facilita desplazamientos en topologías como un anillo. Los buffers de envío
+y recepción deben ser distintos. La alternativa con \texttt{MPI\_Send} y
+\texttt{MPI\_Recv} separados requiere planear explícitamente el orden.
+
+\subheading{Llamadas no bloqueantes}
+
+\texttt{MPI\_Irecv} y \texttt{MPI\_Isend} crean una petición y retornan
+antes de que necesariamente termine la transferencia. \texttt{MPI\_Test}
+consulta una petición sin esperar hasta su finalización. Esto permite
+alternar comunicación y cálculo dentro del mismo proceso. Una petición de
+envío debe completarse antes de modificar o liberar su buffer.
+
+\subheading{Medición temporal}
+
+\texttt{MPI\_Wtime} entrega segundos transcurridos según el reloj local
+del proceso. Cada duración se calcula restando dos lecturas tomadas en el
+\emph{mismo} rank; no se restan marcas temporales de ranks distintos. Se
+registra una ronda de calentamiento en Ping-Pong y se realizan tres
+repeticiones por configuración. La mediana atenúa corridas aisladas con
+interferencia del sistema, pero la dispersión seguirá siendo relevante.
+
+\heading{Entorno y método experimental}
+
+Las ejecuciones están previstas en Ubuntu bajo WSL con Open MPI. El
+estudiante compilará los cuatro programas con \texttt{mpicc} y el
+\texttt{Makefile} del repositorio. Se registrarán las versiones de
+\texttt{mpicc}, \texttt{mpirun} y el equipo utilizado. La ejecución se
+realizará localmente en una sola máquina; \texttt{--oversubscribe} se usará
+solo si el anillo de cinco procesos excede los slots disponibles.
+
+\resultpending{Versión de Open MPI, distribución WSL y características del equipo}
+
+Para cada experimento se mantiene fijo el trabajo total pertinente y se
+varía una sola magnitud principal. Los programas imprimen una línea CSV
+al final, además de un resumen legible. Las capturas documentan la
+ejecución y los CSV conservan los números exactos para las gráficas.
+Las figuras se elaborarán a partir de la mediana de tres repeticiones;
+si hay variabilidad apreciable, se mostrarán los valores individuales.
+
+\begin{center}
+\begin{tabular}{@{}p{0.27\linewidth}p{0.30\linewidth}p{0.34\linewidth}@{}}
+\toprule
+\textbf{Experimento} & \textbf{Variable independiente} & \textbf{Control} \\
+\midrule
+Ping-Pong & 1, 64, 1024, 16384, 65536 enteros & 1000 rondas, 2 ranks \\
+Token Ring & Dos variantes de comunicación & 5 ranks, 1000 vueltas \\
+Recepción anticipada & Los mismos tamaños de mensaje & 1000 operaciones por consulta, 2 ranks \\
+Pipeline & Chunks de 256 a 65536 enteros & 1\,048\,576 enteros totales, 2 ranks \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\clearpage
+\heading{Parte 1: comunicación con bloqueo}
+
+\subheading{Ping-Pong}
+
+\evidence{01_ping_pong_entero}{Intercambio básico de un entero durante N rondas.}
+\evidence{02_ping_pong_tamanos}{Comparación de al menos dos tamaños de mensaje.}
+
+El rank 0 genera un buffer de enteros y lo envía a rank 1. Este lo recibe y
+lo devuelve sin modificarlo. Una ronda consta de un envío y una devolución;
+el usuario fija N mediante el primer argumento. Para cumplir simultáneamente
+el caso básico y el estudio de tamaños, el segundo argumento controla el
+número de enteros: con valor 1 se envía un entero, y con valores mayores se
+envía un arreglo de enteros. El último mensaje devuelto se compara con el
+patrón original antes de informar que la prueba fue correcta.
+
+La duración total medida en rank 0 se divide entre N para obtener la
+latencia media de ida y vuelta:
+\[
+  T_{\mathrm{RTT}}=\frac{t_{\mathrm{fin}}-t_{\mathrm{inicio}}}{N},
+  \qquad
+  T_{\mathrm{ida,estimada}}=\frac{T_{\mathrm{RTT}}}{2}.
+\]
+La segunda expresión es una estimación bajo simetría aproximada, no una
+medición independiente de una dirección. La gráfica solicitada usará bytes
+por mensaje en el eje horizontal y $T_{\mathrm{RTT}}$ en el vertical.
+
+\resultpending{Tabla, gráfica tamaño de mensaje frente a tiempo y discusión de tendencia del Ping-Pong}
+
+\subheading{Token Ring}
+
+\evidence{03_token_ring_send_recv}{Anillo con envíos y recepciones separados.}
+\evidence{04_token_ring_sendrecv}{Anillo con la instrucción MPI\_Sendrecv.}
+
+Se usan al menos cinco ranks. Para un rank $i$ de un comunicador de tamaño
+$P$, el vecino anterior y el siguiente son
+\[
+  \mathrm{src}(i)=(i-1+P)\bmod P,\qquad
+  \mathrm{dst}(i)=(i+1)\bmod P.
+\]
+Rank 0 comienza con un único token válido. Cada recepción incrementa el
+valor, lo cual permite verificar que el token visitó todos los procesos.
+Tras $V$ vueltas, el token devuelto a rank 0 debe valer $P\,V$, y cada rank
+debe registrar exactamente $V$ visitas.
+
+En la primera variante, rank 0 envía para iniciar cada vuelta y después
+recibe el token de su vecino anterior. Los otros ranks reciben primero y
+luego envían. Este orden evita que todos queden esperando dentro de un
+envío bloqueante. En la segunda variante, todos los ranks ejecutan
+\texttt{MPI\_Sendrecv} en cada paso: el rank que no posee el token envía
+un centinela $-1$, mientras el poseedor envía el valor válido. Una vuelta
+consta de $P$ pasos; sigue existiendo un único token válido.
+
+La diferencia central es que \texttt{MPI\_Sendrecv} combina las dos
+operaciones bloqueantes en una llamada y coordina su progreso. Con
+\texttt{MPI\_Send} y \texttt{MPI\_Recv} separados, el programador debe
+establecer el orden seguro de cada rank. El centinela hace explícito el
+estado vacío del anillo y permite que todos llamen a \texttt{MPI\_Sendrecv}
+en cada paso, aunque solo un mensaje contenga el token verdadero.
+
+\resultpending{Comparación de ambas variantes y verificación de visitas por rank}
+
+\heading{Parte 2: comunicación sin bloqueo}
+
+\subheading{Recepción anticipada}
+
+\evidence{05_recepcion_entero}{Recepción básica de un entero y trabajo aritmético.}
+\evidence{06_recepcion_tamanos}{Ejemplo con un mensaje de mayor tamaño.}
+
+Rank 1 inicia \texttt{MPI\_Irecv} antes de hacer aritmética. A continuación
+ejecuta un lote fijo de operaciones y llama a \texttt{MPI\_Test}; repite
+esta secuencia hasta que la petición se completa. Rank 0 prepara el buffer,
+inicia \texttt{MPI\_Isend} y espera antes de liberarlo. El caso de un
+elemento cumple el intercambio de un entero y los arreglos permiten
+estudiar mensajes mayores sin cambiar el protocolo.
+
+El receptor registra el primer entero, la suma validada, el número total
+de operaciones aritméticas y el tiempo transcurrido desde antes de publicar
+la recepción hasta que \texttt{MPI\_Test} informa su finalización. También
+se registra por separado el tiempo local de envío del rank 0. El tiempo
+del receptor incluye cómputo y sondeo; por ello no debe interpretarse como
+latencia pura de red. La cantidad de trabajo realizado antes de recibir
+puede cambiar entre corridas según la planificación de procesos.
+
+\resultpending{Gráfica de tamaño de mensaje frente a tiempo y análisis del trabajo solapado}
+
+\subheading{Productor-consumidor: pipeline por chunks}
+
+\evidence{07_pipeline_chunks}{Ejecución con chunks, mensaje STOP y suma correcta.}
+\evidence{08_pipeline_tamanos}{Ejecución con un tamaño de chunk distinto.}
+
+Rank 0 crea un arreglo de $1\,048\,576$ enteros. El tamaño de chunk debe
+dividir al total exactamente; por ello todos los bloques tienen la misma
+cantidad de elementos. El productor conserva hasta dos envíos
+\texttt{MPI\_Isend} pendientes. Antes de reutilizar una petición, espera
+su finalización. Rank 1 detecta el siguiente mensaje, recibe el chunk y
+procesa sus enteros de inmediato. Al terminar todos los envíos, rank 0
+envía mediante \texttt{MPI\_Isend} un mensaje de control \texttt{STOP}.
+El receptor lo reconoce por su etiqueta y sale del bucle.
+
+Cada entero se compara con el patrón esperado y se acumula una suma.
+Al final, el consumidor comunica al productor el número de chunks y su
+suma. Rank 0 compara ambos contra los valores previstos. El tiempo total
+se toma en rank 0 y termina después de la confirmación del consumidor y
+una barrera final; incluye transferencia y procesamiento del lote completo.
+
+El número de chunks es $C=M/B$, donde $M$ es la cantidad total de enteros
+y $B$ el tamaño de chunk en enteros. Chunks pequeños implican más mensajes
+y posiblemente mayor costo de coordinación; chunks grandes reducen el
+número de mensajes, pero pueden limitar el solapamiento. La tendencia
+concreta debe decidirse con los datos observados.
+
+\resultpending{Tabla y gráfica de tamaño de chunk frente a tiempo total, más discusión}
+
+\heading{Discusión metodológica}
+
+Los experimentos sobre una sola máquina y WSL pueden reflejar costos de
+memoria compartida, planificación del sistema operativo y configuración
+de Open MPI, además de los costos del protocolo. El uso de
+\texttt{--oversubscribe} en Token Ring también puede introducir espera
+por CPU; por ello los tiempos entre ejercicios no se compararán como si
+midieran un mismo recurso. Cada gráfica responderá a la pregunta concreta
+del ejercicio y señalará su escala y unidad.
+
+Las salidas verificadas son una condición previa para interpretar los
+tiempos. Si una corrida no finaliza correctamente, se conserva el registro
+del error pero se excluye de la estadística hasta resolver su causa. Las
+tres repeticiones por configuración son un mínimo práctico; si hay alta
+dispersión, convendrá repetir más veces el caso afectado.
+
+\heading{Conclusiones}
+
+El diseño cubre los cuatro ejercicios del enunciado con parámetros
+controlables, comprobaciones de corrección y un protocolo explícito de
+medición. La comunicación bloqueante exige coordinar el orden de envíos y
+recepciones; \texttt{MPI\_Sendrecv} simplifica el desplazamiento circular.
+Las operaciones no bloqueantes permiten iniciar comunicación y continuar
+el cálculo o la producción de datos, siempre que se controle la vida de
+los buffers y la finalización de las peticiones.
+
+\resultpending{Conclusiones cuantitativas sustentadas en las gráficas y capturas del estudiante}
+
+\heading{Referencias}
+
+\begin{enumerate}
+\item Universidad del Valle de Guatemala. \emph{Laboratorio \#3},
+Computación Paralela y Distribuida, semestre 2 de 2025. Enunciado PDF
+proporcionado para esta realización.
+\item Open MPI. \emph{MPI\_Sendrecv}. Manual oficial.
+\url{https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Sendrecv.3.html}.
+\item Open MPI. \emph{MPI\_Test}. Manual oficial.
+\url{https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Test.3.html}.
+\item Open MPI. \emph{MPI\_Wtime}. Manual oficial.
+\url{https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Wtime.3.html}.
+\end{enumerate}
+
+\heading{Apéndice: comandos de referencia}
+
+\begin{center}
+\fcolorbox{azul}{azulclaro}{\parbox{0.90\linewidth}{%
+\ttfamily\small
+make\\
+mpirun -np 2 ./build/ping\_pong 10 1\\
+mpirun --oversubscribe -np 5 ./build/token\_ring sendrecv 1\\
+mpirun -np 2 ./build/recepcion\_anticipada 1 1000\\
+mpirun -np 2 ./build/pipeline\_chunks 1048576 4096\\
+bash scripts/mediciones.sh
+}}
+\end{center}
+
+La última instrucción ejecuta el barrido de mediciones del estudiante,
+genera cuatro CSV y conserva las salidas completas de cada corrida.
+
+\end{document}
