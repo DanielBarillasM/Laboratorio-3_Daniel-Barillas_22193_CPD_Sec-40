@@ -196,11 +196,13 @@ Las 51 filas de los CSV coinciden con la última línea de sus registros
 originales locales. Hay 17 configuraciones completas, con repeticiones
 1, 2 y 3, sin filas faltantes ni duplicadas. Las capturas corresponden a
 demostraciones adicionales: sus tiempos no se mezclan con el barrido.
-Las mediciones y capturas de Ping-Pong proceden de la versión con una
-ronda de calentamiento implícita. En la versión final esa preparación
+Las mediciones de Ping-Pong proceden de un protocolo con una ronda de
+calentamiento fuera del cronómetro. En la versión final esa preparación
 requiere \texttt{-{}-warmup}, preservando el protocolo del barrido sin
-alterar los CSV históricos. El caso básico corregido se comprobó mediante
-inspección y compilación, sin atribuirle nuevas mediciones.
+alterar los CSV históricos. Las dos capturas renovadas sí muestran la
+versión final: el caso básico ejecuta N rondas exactas y el caso de mayor
+tamaño activa explícitamente el calentamiento. Sus tiempos son demostrativos
+y no se incorporan a las tablas del barrido.
 
 Las tablas presentan mediana, media, desviación estándar muestral (DE)
 y mínimo--máximo. La DE se calcula con divisor $n-1$, con $n=3$. No se
@@ -255,7 +257,7 @@ Pipeline & Chunks de 256 a 65536 enteros & 1\,048\,576 enteros totales, 2 ranks 
 \subheading{Ping-Pong}
 
 \subsubsection*{Inciso 1: entero y N intercambios}
-\evidence{01_ping_pong_entero}{Demostración original: 10 rondas medidas con un entero, precedidas por calentamiento. El mensaje regresa sin cambios.}
+\evidence{01_ping_pong_entero}{Versión final: 10 rondas exactas con un entero y calentamiento desactivado. El mensaje regresa sin cambios.}
 
 El rank 0 genera un buffer de enteros y lo envía a rank 1. Este lo recibe y
 lo devuelve sin modificarlo. Una ronda consta de un envío y una devolución;
@@ -275,7 +277,7 @@ relacionar la captura con las llamadas MPI del código.
 
 \clearpage
 \subsubsection*{Inciso 2: MPI\_Wtime, tamaños y tendencia}
-\evidence{02_ping_pong_tamanos}{Demostración original con calentamiento: 1000 rondas medidas y 1024 enteros, equivalentes a 4096 bytes por mensaje.}
+\evidence{02_ping_pong_tamanos}{Versión final con \texttt{-{}-warmup}: una ronda preparatoria no medida y 1000 rondas medidas con 1024 enteros por mensaje.}
 
 La duración total medida en rank 0 se divide entre N para obtener la
 latencia media de ida y vuelta:
@@ -676,11 +678,6 @@ proporcionado para esta realización.
 \url{https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Test.3.html}.
 \item Open MPI. \emph{MPI\_Wtime}. Manual oficial.
 \url{https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Wtime.3.html}.
-\item Kassis, T., Agarwal, V., He, Y., Patel, D. y Brueckner, A. M.
-(2026). \emph{Scientific Agent Skills: A Library of Procedural Knowledge
-for Research Agents}. Apoyo metodológico mediante las skills
-\texttt{statistical-analysis} y \texttt{matplotlib}.
-\url{https://doi.org/10.48550/arXiv.2609.00065}.
 \end{enumerate}
 
 \clearpage

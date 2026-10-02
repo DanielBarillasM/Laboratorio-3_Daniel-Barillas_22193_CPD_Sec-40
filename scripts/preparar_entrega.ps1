@@ -14,7 +14,7 @@ $labArchivePath = Join-Path $labArchiveDirectory 'Laboratorio-3_Daniel-Barillas_
 
 # Required entries preserve their relative paths for LaTeX and make.
 $labEntries = @(
-    'README.md', 'AUDITORIA.md', 'LICENSE', 'Makefile',
+    'README.md', 'LICENSE', 'Makefile',
     'src/01_ping_pong.c', 'src/02_token_ring.c',
     'src/03_recepcion_anticipada.c', 'src/04_pipeline_chunks.c',
     'src/common.h', 'src/visual.h',

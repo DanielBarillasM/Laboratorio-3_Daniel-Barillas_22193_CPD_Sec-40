@@ -8,7 +8,7 @@ Daniel Barillas · Carné 22193 · Sección 40
 
 `C11` · `Open MPI` · `Ubuntu / WSL` · `4 ejercicios` · `51 mediciones`
 
-[Ejecución](#compilación-y-ejecución) · [Resultados](#resultados-experimentales) · [Evidencias](#evidencias-de-ejecución) · [PDF](informe/informe.pdf) · [Auditoría](AUDITORIA.md)
+[Ejecución](#compilación-y-ejecución) · [Resultados](#resultados-experimentales) · [Evidencias](#evidencias-de-ejecución) · [PDF](informe/informe.pdf)
 
 </div>
 
@@ -155,12 +155,12 @@ Los resultados proceden de los cuatro [CSV versionados](resultados/):
 Las 51 filas coinciden con la última línea de sus registros locales originales.
 No hay configuraciones faltantes ni repeticiones duplicadas.
 
-**Trazabilidad del calentamiento:** los CSV y las capturas de Ping-Pong se
-obtuvieron con la versión que preparaba una ronda implícita antes de medir.
-La versión final conserva ese protocolo con `--warmup` en el barrido y lo
-desactiva por defecto para cumplir literalmente N intercambios. No se han
-reescrito las mediciones ni se presentan las capturas históricas como una
-nueva ejecución del código corregido.
+**Trazabilidad del calentamiento:** los CSV de Ping-Pong se obtuvieron con una
+ronda preparatoria fuera del cronómetro. La versión final conserva ese mismo
+protocolo mediante `--warmup` y lo desactiva por defecto para cumplir
+literalmente N intercambios. Las capturas actuales sí corresponden al programa
+final: la primera muestra N exacto y la segunda activa `--warmup`. Sus tiempos
+son demostrativos y no reemplazan ni reescriben las mediciones del barrido.
 
 Se presenta la **mediana** como resumen principal, acompañada por la media,
 la desviación estándar muestral (**DE**, divisor `n − 1`) y el intervalo
@@ -323,8 +323,11 @@ además la recepción de `STOP` y la terminación del consumidor.
 
 ## Evidencias de ejecución
 
-Las ocho capturas originales están en [evidencias/](evidencias/), con los nombres
-utilizados por el informe LaTeX. No se han reconstruido ni alterado sus valores.
+Las ocho capturas proporcionadas por el estudiante están en
+[evidencias/](evidencias/), con los nombres utilizados por el informe LaTeX.
+Las dos evidencias de Ping-Pong fueron renovadas después de compilar la versión
+final: una usa el modo exacto de N rondas y otra muestra el calentamiento
+explícito del protocolo experimental.
 
 <details>
 <summary><strong>01 · Ping-Pong — entero y mensaje de 1024 enteros</strong></summary>
@@ -383,7 +386,6 @@ utilizados por el informe LaTeX. No se han reconstruido ni alterado sus valores.
 ├── informe/                        Fuente LaTeX, PDF y figuras/
 ├── Makefile
 ├── LICENSE
-├── AUDITORIA.md
 └── README.md
 ```
 
@@ -400,7 +402,8 @@ en los 51 registros experimentales. Las gráficas PDF vectoriales y PNG están e
 (se utilizó la versión 3.10.1); el PDF puede recompilarse directamente con las
 figuras ya incluidas, sin instalar Python ni volver a ejecutar MPI.
 
-Para compilar desde una instalación de LaTeX con los paquetes de la fuente:
+Para compilar el informe desde una instalación de LaTeX con los paquetes de la
+fuente:
 
 ```bash
 cd informe
@@ -411,33 +414,24 @@ pdflatex -interaction=nonstopmode -halt-on-error informe.tex
 
 ### Paquete de entrega
 
-Desde **PowerShell**, en la raíz del repositorio:
+Desde PowerShell, en la raíz del repositorio:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/preparar_entrega.ps1
 ```
 
-Genera `entrega/Laboratorio-3_Daniel-Barillas_22193_CPD_Sec-40.zip` con el PDF,
-la fuente LaTeX y sus figuras, los cuatro `.c`, los dos encabezados `.h`,
-Makefile, README, auditoría, scripts, CSV y capturas. La lista de inclusión es
-explícita: no incorpora `build/`, `.git/`, registros brutos, auxiliares ni
-ejecutables. Se detiene si el ZIP ya existe para evitar sobrescribirlo.
+El comando genera `entrega/Laboratorio-3_Daniel-Barillas_22193_CPD_Sec-40.zip`
+con el PDF, la fuente LaTeX, cuatro archivos `.c`, dos encabezados `.h`,
+Makefile, README, scripts, CSV, gráficas y capturas. La lista de
+inclusión es explícita: no incorpora `build/`, `.git/`, registros brutos,
+auxiliares de LaTeX ni ejecutables.
 
 La entrega en Canvas corresponde al PDF y los fuentes; ambos están incluidos
 en el paquete. Los encabezados deben acompañar a los `.c` para compilarlos.
-La publicación en GitHub no sustituye la entrega en Canvas. Véase
-[AUDITORIA.md](AUDITORIA.md) para los requisitos y el alcance de las comprobaciones.
+La publicación en GitHub no sustituye la entrega en Canvas.
 
-El enunciado del curso, *Laboratorio #3*, define los cuatro ejercicios.
-La semántica de las operaciones y del cronómetro se documenta en Open MPI:
-[MPI_Sendrecv](https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Sendrecv.3.html),
+La semántica de las operaciones se contrastó con los manuales oficiales de
+Open MPI: [MPI_Sendrecv](https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Sendrecv.3.html),
 [MPI_Test](https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Test.3.html),
 [MPI_Isend](https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Isend.3.html) y
 [MPI_Wtime](https://docs.open-mpi.org/en/main/man-openmpi/man3/MPI_Wtime.3.html).
-Los intervalos se calculan dentro de cada rank, sin asumir relojes sincronizados.
-
-El análisis descriptivo se elaboró con apoyo de la skill `statistical-analysis`
-de Scientific Agent Skills, manteniendo todas las observaciones y limitando las
-conclusiones al conjunto medido: Kassis, T., Agarwal, V., He, Y., Patel, D. y
-Brueckner, A. M. (2026). [*Scientific Agent Skills: A Library of Procedural
-Knowledge for Research Agents*](https://doi.org/10.48550/arXiv.2609.00065).
