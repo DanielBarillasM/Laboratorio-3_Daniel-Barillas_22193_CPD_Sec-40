@@ -13,16 +13,16 @@ all: $(PROGRAMS)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(BUILD_DIR)/ping_pong: src/01_ping_pong.c src/common.h | $(BUILD_DIR)
+$(BUILD_DIR)/ping_pong: src/01_ping_pong.c src/common.h src/visual.h | $(BUILD_DIR)
 	$(MPICC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/token_ring: src/02_token_ring.c src/common.h | $(BUILD_DIR)
+$(BUILD_DIR)/token_ring: src/02_token_ring.c src/common.h src/visual.h | $(BUILD_DIR)
 	$(MPICC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/recepcion_anticipada: src/03_recepcion_anticipada.c src/common.h | $(BUILD_DIR)
+$(BUILD_DIR)/recepcion_anticipada: src/03_recepcion_anticipada.c src/common.h src/visual.h | $(BUILD_DIR)
 	$(MPICC) $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/pipeline_chunks: src/04_pipeline_chunks.c src/common.h | $(BUILD_DIR)
+$(BUILD_DIR)/pipeline_chunks: src/04_pipeline_chunks.c src/common.h src/visual.h | $(BUILD_DIR)
 	$(MPICC) $(CFLAGS) $< -o $@
 
 clean:

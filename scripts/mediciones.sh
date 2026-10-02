@@ -7,6 +7,10 @@ cd "$(dirname "$0")/.."
 mkdir -p resultados/brutos
 make
 
+# Las demostraciones manuales conservan color. En el barrido se guardan
+# registros limpios para que el texto y el CSV sean fáciles de procesar.
+export NO_COLOR=1
+
 for table in ping_pong token_ring recepcion_anticipada pipeline_chunks; do
     if [[ -e "resultados/${table}.csv" ]]; then
         echo "Ya existe resultados/${table}.csv. Renómbralo antes de repetir las mediciones." >&2
